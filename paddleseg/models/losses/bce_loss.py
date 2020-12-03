@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-25 13:40:28
 LastEditors: TJUZQC
-LastEditTime: 2020-11-25 14:03:19
+LastEditTime: 2020-12-03 14:30:57
 Description: None
 '''
 import paddle
@@ -38,6 +38,22 @@ class BCELoss(nn.Layer):
         self.reduction = reduction
 
     def forward(self, input, label):
-        out = paddle.nn.functional.binary_cross_entropy(
+        """
+        Forward computation.
+
+        Args:
+            input (Tensor): input tensor, the data type is float32, float64. Shape is
+                (N, 1), where C is number of classes, and if shape is more than 2D, this
+                is (N, 1, D1, D2,..., Dk), k >= 1.
+            label (Tensor): Label tensor, the data type is int64. Shape is (N), where each
+                value is 0 <= label[i] <= C-1, and if shape is more than 2D, this is
+                (N, D1, D2,..., Dk), k >= 1.
+        """
+        assert input.shape[1] == 1, f'The channel of input except 1 but fot {input.shape[1]}'
+        input = paddle.squeeze(input, 1)
+        assert len(label.shape) == len(input.shape), 'The shape of input and label must be same'
+        if len(label.shape) != len(input.shape):
+            label = paddle.squeeze(label, 1)
+        out = F.binary_cross_entropy(
             input, label, self.weight, self.reduction)
         return out

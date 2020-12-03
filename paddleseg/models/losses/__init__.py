@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-25 10:05:57
 LastEditors: TJUZQC
-LastEditTime: 2020-11-26 15:56:56
+LastEditTime: 2020-12-03 14:34:22
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -23,3 +23,4 @@ Description: None
 from .bce_loss import BCELoss
 from .bce_with_logits_loss import BCEWithLogitsLoss
 from .cross_entroy_loss import CrossEntropyLoss
+from .dice_loss import DiceLoss
