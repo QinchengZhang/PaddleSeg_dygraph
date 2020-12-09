@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-09 12:36:05
 LastEditors: TJUZQC
-LastEditTime: 2020-12-09 13:15:30
+LastEditTime: 2020-12-09 13:55:57
 Description: None
 '''
 import os
@@ -29,14 +29,13 @@ class TN_SCUI2020(Dataset):
         mode (str): Which part of dataset to use. it is one of ('train', 'val', 'test'). Default: 'train'.
     """
 
-    def __init__(self, dataset_root=None, transforms=None, mode='train'):
+    def __init__(self, dataset_root, transforms=None, mode='train'):
         self.dataset_root = dataset_root
         self.transforms = Compose(transforms)
         mode = mode.lower()
         self.mode = mode
         self.file_list = list()
-        self.num_classes = 2
-        self.ignore_index = 255
+        self.num_classes = 1
 
         if mode not in ['train', 'val']:
             raise ValueError(
@@ -46,20 +45,8 @@ class TN_SCUI2020(Dataset):
         if self.transforms is None:
             raise ValueError("`transforms` is necessary, but it is None.")
 
-        if self.dataset_root is None:
-            self.dataset_root = download_file_and_uncompress(
-                url=URL,
-                savepath=seg_env.DATA_HOME,
-                extrapath=seg_env.DATA_HOME)
-        elif not os.path.exists(self.dataset_root):
-            self.dataset_root = os.path.normpath(self.dataset_root)
-            savepath, extraname = self.dataset_root.rsplit(
-                sep=os.path.sep, maxsplit=1)
-            self.dataset_root = download_file_and_uncompress(
-                url=URL,
-                savepath=savepath,
-                extrapath=savepath,
-                extraname=extraname)
+        if not os.path.exists(self.dataset_root):
+            raise FileNotFoundError("dataset_root is not an existing directory.")
 
         if mode == 'train':
             file_path = os.path.join(self.dataset_root, 'train_list.txt')
@@ -74,6 +61,6 @@ class TN_SCUI2020(Dataset):
                         "File list format incorrect! It should be"
                         " image_name label_name\\n")
                 else:
-                    image_path = items[0]
-                    grt_path = items[1]
+                    image_path = os.path.join(self.dataset_root, items[0])
+                    grt_path = os.path.join(self.dataset_root, items[1])
                 self.file_list.append([image_path, grt_path])
