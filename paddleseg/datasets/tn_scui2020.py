@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-09 12:36:05
 LastEditors: TJUZQC
-LastEditTime: 2020-12-09 14:20:00
+LastEditTime: 2020-12-09 17:08:24
 Description: None
 '''
 import os
@@ -35,7 +35,7 @@ class TN_SCUI2020(Dataset):
         mode = mode.lower()
         self.mode = mode
         self.file_list = list()
-        self.num_classes = 1
+        self.num_classes = 2
         self.ignore_index = 255
 
         if mode not in ['train', 'val']:
