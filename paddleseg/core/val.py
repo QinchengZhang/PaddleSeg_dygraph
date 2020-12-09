@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-25 16:12:55
 LastEditors: TJUZQC
-LastEditTime: 2020-12-09 16:34:51
+LastEditTime: 2020-12-09 16:55:20
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -37,7 +37,7 @@ def evaluate(model, eval_dataset=None, iter_id=None):
 
     total_iters = len(eval_dataset)
     conf_mat = ConfusionMatrix(
-        eval_dataset.num_classes if eval_dataset.num_classes > 1 else 2, streaming=True)
+        max(eval_dataset.num_classes, 2), streaming=True)
 
     logger.info("Start evaluating (total_samples={}, total_iters={})...".format(
         len(eval_dataset), total_iters))
@@ -47,12 +47,18 @@ def evaluate(model, eval_dataset=None, iter_id=None):
             enumerate(eval_dataset), total=total_iters):
         im = paddle.to_tensor(im)
         logits = model(im)
-        pred = paddle.argmax(logits[0], axis=1) if eval_dataset.num_classes > 1 else paddle.nn.functional.sigmoid(logits[0])
+        pred = paddle.argmax(
+            logits[0], axis=1) if eval_dataset.num_classes > 1 else paddle.nn.functional.sigmoid(logits[0])
         pred = pred.numpy().astype('float32')
         if eval_dataset.num_classes == 1:
             pred[pred >= 0.5] = 1.
             pred[pred < 0.5] = 0.
         pred = np.squeeze(pred)
+        
+        count = []
+        for i in np.unique(pred):
+            count.append(np.sum(pred==i))
+        print(zip(np.unique(pred), count))
         for info in im_info[::-1]:
             if info[0] == 'resize':
                 h, w = info[1][0], info[1][1]
@@ -67,7 +73,6 @@ def evaluate(model, eval_dataset=None, iter_id=None):
         pred = pred.astype('int64')
         mask = label != eval_dataset.ignore_index
         # To-DO Test Execution Time
-        print(pred.shape, label.shape)
         conf_mat.calculate(pred=pred, label=label, mask=mask)
         _, iou = conf_mat.mean_iou()
 
