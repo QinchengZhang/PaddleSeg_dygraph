@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-25 13:40:58
 LastEditors: TJUZQC
-LastEditTime: 2020-12-03 14:29:22
+LastEditTime: 2020-12-09 14:04:27
 Description: None
 '''
 import paddle
@@ -62,6 +62,6 @@ class BCEWithLogitsLoss(nn.Layer):
             label = paddle.squeeze(label, 1)
 
         out = F.binary_cross_entropy_with_logits(
-            logit, label, self.weight, self.reduction, self.pos_weight)
+            logit, label.astype(logit.dtype), self.weight, self.reduction, self.pos_weight)
         label.stop_gradient = True
         return out
