@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+'''
+Author: TJUZQC
+Date: 2020-11-25 16:12:55
+LastEditors: TJUZQC
+LastEditTime: 2020-12-09 16:26:12
+Description: None
+'''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +36,8 @@ def evaluate(model, eval_dataset=None, iter_id=None):
     model.eval()
 
     total_iters = len(eval_dataset)
-    conf_mat = ConfusionMatrix(eval_dataset.num_classes, streaming=True)
+    conf_mat = ConfusionMatrix(
+        eval_dataset.num_classes if eval_dataset.num_classes > 1 else 2, streaming=True)
 
     logger.info("Start evaluating (total_samples={}, total_iters={})...".format(
         len(eval_dataset), total_iters))
@@ -38,8 +47,11 @@ def evaluate(model, eval_dataset=None, iter_id=None):
             enumerate(eval_dataset), total=total_iters):
         im = paddle.to_tensor(im)
         logits = model(im)
-        pred = paddle.argmax(logits[0], axis=1)
+        pred = paddle.argmax(logits[0], axis=1) if eval_dataset.num_classes > 1 else paddle.nn.functional.sigmoid(logits[0])
         pred = pred.numpy().astype('float32')
+        if eval_dataset.num_classes == 1:
+            pred[pred >= 0.5] = 1.
+            pred[pred < 0.5] = 0.
         pred = np.squeeze(pred)
         for info in im_info[::-1]:
             if info[0] == 'resize':
