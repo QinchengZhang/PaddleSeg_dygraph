@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-25 16:12:55
 LastEditors: TJUZQC
-LastEditTime: 2020-12-09 16:55:20
+LastEditTime: 2020-12-09 16:57:10
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -58,7 +58,7 @@ def evaluate(model, eval_dataset=None, iter_id=None):
         count = []
         for i in np.unique(pred):
             count.append(np.sum(pred==i))
-        print(zip(np.unique(pred), count))
+        print(np.unique(pred), '\n', count)
         for info in im_info[::-1]:
             if info[0] == 'resize':
                 h, w = info[1][0], info[1][1]
