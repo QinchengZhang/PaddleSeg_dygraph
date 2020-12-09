@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-25 16:12:55
 LastEditors: TJUZQC
-LastEditTime: 2020-12-09 16:57:24
+LastEditTime: 2020-12-09 17:09:54
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -55,10 +55,10 @@ def evaluate(model, eval_dataset=None, iter_id=None):
             pred[pred < 0.5] = 0.
         pred = np.squeeze(pred)
         
-        count = []
-        for i in np.unique(pred):
-            count.append(np.sum(pred==i))
-        print(np.unique(pred), '\n', count)
+        # count = []
+        # for i in np.unique(pred):
+        #     count.append(np.sum(pred==i))
+        # print(np.unique(pred), '\n', count)
         for info in im_info[::-1]:
             if info[0] == 'resize':
                 h, w = info[1][0], info[1][1]
