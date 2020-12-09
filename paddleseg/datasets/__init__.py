@@ -27,3 +27,4 @@ from .cityscapes import Cityscapes
 from .optic_disc_seg import OpticDiscSeg
 from .remotesensing import RemoteSensing
 from .voc import PascalVOC
+from .tn_scui2020 import TN_SCUI2020
