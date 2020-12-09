@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-09 12:36:05
 LastEditors: TJUZQC
-LastEditTime: 2020-12-09 13:06:00
+LastEditTime: 2020-12-09 13:15:30
 Description: None
 '''
 import os
@@ -68,12 +68,12 @@ class TN_SCUI2020(Dataset):
 
         with open(file_path, 'r') as f:
             for line in f:
-                items = line.strip().split()
+                items = line.strip().split(' ')
                 if len(items) != 2:
                     raise Exception(
                         "File list format incorrect! It should be"
                         " image_name label_name\\n")
                 else:
-                    image_path = os.path.join(self.dataset_root, items[0])
-                    grt_path = os.path.join(self.dataset_root, items[1])
+                    image_path = items[0]
+                    grt_path = items[1]
                 self.file_list.append([image_path, grt_path])
