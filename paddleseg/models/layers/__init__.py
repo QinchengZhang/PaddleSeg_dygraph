@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-22 14:57:05
 LastEditors: TJUZQC
-LastEditTime: 2020-11-24 17:37:46
+LastEditTime: 2020-12-11 11:52:01
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -20,6 +20,6 @@ Description: None
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .layer_libs import ConvBNReLU, ConvBN, SeparableConvBNReLU, DepthwiseConvBN, AuxLayer, SyncBatchNorm, HSBottleNeck, HSBlockBNReLU, HSBlock
+from .layer_libs import ConvBNReLU, ConvBN, SeparableConvBNReLU, DepthwiseConvBN, AuxLayer, SyncBatchNorm, HSBottleNeck, HSBlockBNReLU, HSBlock, AttentionBlock
 from .activation import Activation
 from .pyramid_pool import ASPPModule, PPModule
