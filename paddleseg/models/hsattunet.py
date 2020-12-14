@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-11 11:52:47
 LastEditors: TJUZQC
-LastEditTime: 2020-12-14 16:13:14
+LastEditTime: 2020-12-14 17:10:30
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -143,31 +143,47 @@ class UpSampling(nn.Layer):
         if self.use_deconv:
             self.deconv = nn.Conv2DTranspose(
                 in_channels,
-                out_channels // 2,
+                out_channels,
                 kernel_size=2,
                 stride=2,
                 padding=0)
-            in_channels = in_channels + out_channels // 2
-        else:
-            in_channels *= 2
+            in_channels = in_channels + out_channels
+            self.attention_gate = layers.AttentionBlock(out_channels , in_channels, out_channels//2)
 
-        self.conv1 = layers.HSBottleNeck(in_channels, out_channels, split)
-        self.conv2 = layers.HSBottleNeck(out_channels, out_channels, split)
-        self.attention_gate = layers.AttentionBlock(
-            out_channels, out_channels, int(out_channels/2))
+        else:
+            self.attention_gate = layers.AttentionBlock(in_channels , in_channels, out_channels//2)
+            self.conv = layers.ConvBN(in_channels*2, in_channels, kernel_size=1)
+            in_channels *= 2
+            
+        self.double_conv = nn.Sequential(
+            # layers.ConvBNReLU(in_channels, out_channels, 3),
+            # layers.ConvBNReLU(out_channels, out_channels, 3))
+            layers.HSBottleNeck(in_channels, out_channels, split),
+            layers.HSBottleNeck(out_channels, out_channels, split))
 
     def forward(self, x, short_cut, low_f=None):
         if self.use_deconv:
             x = self.deconv(x)
+            if low_f is not None:
+                low_f = self.deconv(low_f)
         else:
             x = F.interpolate(
                 x,
                 short_cut.shape[2:],
                 mode='bilinear',
                 align_corners=self.align_corners)
-        x = self.conv1(x)
-        f = self.attention_gate(x, short_cut)*low_f if low_f is not None else self.attention_gate(x, short_cut)
+            if low_f is not None:
+                low_f = F.interpolate(
+                        low_f,
+                        short_cut.shape[2:],
+                        mode='bilinear',
+                        align_corners=self.align_corners)
+                low_f = self.conv(low_f)
+                
+        # print(x.shape, short_cut.shape, low_f.shape if low_f is not None else '')
+        f = self.attention_gate(
+            x, short_cut)*low_f if low_f is not None else self.attention_gate(x, short_cut)
         x = paddle.concat([x, f], axis=1)
-        x= self.conv2(x)
-
+        x = self.double_conv(x)
+        # print(f.shape)
         return x, f

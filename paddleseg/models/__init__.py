@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-22 14:57:05
 LastEditors: TJUZQC
-LastEditTime: 2020-11-24 17:03:30
+LastEditTime: 2020-12-14 16:15:17
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -34,3 +34,4 @@ from .ocrnet import *
 from .pspnet import *
 from .unet import UNet
 from .hsunet import HS_UNet
+from .hsattunet import HS_Att_UNet
