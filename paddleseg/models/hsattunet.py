@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-11 11:52:47
 LastEditors: TJUZQC
-LastEditTime: 2020-12-14 17:10:30
+LastEditTime: 2020-12-16 12:44:48
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -147,6 +147,12 @@ class UpSampling(nn.Layer):
                 kernel_size=2,
                 stride=2,
                 padding=0)
+            self.deconv_att = nn.Conv2DTranspose(
+                in_channels,
+                out_channels,
+                kernel_size=2,
+                stride=2,
+                padding=0)
             in_channels = in_channels + out_channels
             self.attention_gate = layers.AttentionBlock(out_channels , in_channels, out_channels//2)
 
@@ -165,7 +171,7 @@ class UpSampling(nn.Layer):
         if self.use_deconv:
             x = self.deconv(x)
             if low_f is not None:
-                low_f = self.deconv(low_f)
+                low_f = self.deconv_att(low_f)
         else:
             x = F.interpolate(
                 x,
