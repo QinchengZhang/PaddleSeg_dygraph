@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 '''
 Author: TJUZQC
-Date: 2020-12-09 12:36:05
+Date: 2020-12-17 14:26:06
 LastEditors: TJUZQC
-LastEditTime: 2020-12-17 14:27:03
+LastEditTime: 2020-12-17 14:28:08
 Description: None
 '''
 import os
@@ -16,10 +16,10 @@ from paddleseg.transforms import Compose
 
 
 @manager.DATASETS.add_component
-class TN_SCUI2020(Dataset):
+class SegPC2021(Dataset):
     """
-    TN_SCUI2020 dataset is extraced from Grand-Challenge
-    (https://tn-scui2020.grand-challenge.org/Home/).
+    SegPC2021 dataset is extraced from Grand-Challenge
+    (https://segpc-2021.grand-challenge.org/Home/).
 
     Args:
         transforms (list): Transforms for image.
@@ -33,19 +33,20 @@ class TN_SCUI2020(Dataset):
         mode = mode.lower()
         self.mode = mode
         self.file_list = list()
-        self.num_classes = 2
+        self.num_classes = 3
         self.ignore_index = 255
 
-        if mode not in ['train', 'val']:
+        if mode not in ['train', 'val', 'test']:
             raise ValueError(
-                "`mode` should be 'train' or 'val', but got {}.".format(
+                "`mode` should be 'train', 'val' or 'test', but got {}.".format(
                     mode))
 
         if self.transforms is None:
             raise ValueError("`transforms` is necessary, but it is None.")
 
         if not os.path.exists(self.dataset_root):
-            raise FileNotFoundError("dataset_root is not an existing directory.")
+            raise FileNotFoundError(
+                "dataset_root is not an existing directory.")
 
         if mode == 'train':
             file_path = os.path.join(self.dataset_root, 'train_list.txt')
