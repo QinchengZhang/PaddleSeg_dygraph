@@ -20,6 +20,6 @@ Description: None
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .layer_libs import ConvBNReLU, ConvBN, SeparableConvBNReLU, DepthwiseConvBN, AuxLayer, SyncBatchNorm, HSBottleNeck, HSBlockBNReLU, HSBlock, AttentionBlock
+from .layer_libs import ConvBNReLU, ConvBN, SeparableConvBNReLU, DepthwiseConvBN, AuxLayer, SyncBatchNorm, HSBottleNeck, HSBlockBNReLU, HSBlock, AttentionBlock, MultiHeadAttention
 from .activation import Activation
 from .pyramid_pool import ASPPModule, PPModule

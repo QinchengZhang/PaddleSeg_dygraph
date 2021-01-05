@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
@@ -257,3 +258,65 @@ class AttentionBlock(nn.Layer):
         psi = self.psi(psi)
 
         return x*psi
+
+class MultiHeadAttention(nn.Layer):
+    """
+    This class implements a multi head attention module like proposed in:
+    https://arxiv.org/abs/2005.12872
+    """
+
+    def __init__(self, query_dimension: int = 64, hidden_features: int = 64, number_of_heads: int = 16,
+                 dropout: float = 0.0) -> None:
+        """
+        Constructor method
+        :param query_dimension: (int) Dimension of query tensor
+        :param hidden_features: (int) Number of hidden features in detr
+        :param number_of_heads: (int) Number of prediction heads
+        :param dropout: (float) Dropout factor to be utilized
+        """
+        # Call super constructor
+        super(MultiHeadAttention, self).__init__()
+        # Save parameters
+        self.hidden_features = hidden_features
+        self.number_of_heads = number_of_heads
+        self.dropout = dropout
+        # Init layer
+        self.layer_box_embedding = nn.Linear(in_features=query_dimension, out_features=hidden_features, bias_attr=True)
+        # Init convolution layer
+        self.layer_image_encoding = nn.Conv2D(in_channels=query_dimension, out_channels=hidden_features,
+                                              kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias_attr=True)
+        # Init normalization factor
+        self.normalization_factor = paddle.to_tensor(self.hidden_features / self.number_of_heads, dtype='float32').sqrt()
+
+    def forward(self, input_box_embeddings: paddle.Tensor, input_image_encoding: paddle.Tensor) -> paddle.Tensor:
+        """
+        Forward pass
+        :param input_box_embeddings: (torch.Tensor) Bounding box embeddings
+        :param input_image_encoding: (torch.Tensor) Encoded image of the transformer encoder
+        :return: (torch.Tensor) Attention maps of shape (batch size, n, m, height, width)
+        """
+        # Map box embeddings
+        output_box_embeddings = self.layer_box_embedding(input_box_embeddings)
+        # Map image features
+        output_image_encoding = self.layer_image_encoding(input_image_encoding)
+        # Reshape output box embeddings
+        output_box_embeddings = output_box_embeddings.reshape([output_box_embeddings.shape[0],
+                                                           output_box_embeddings.shape[1],
+                                                           self.number_of_heads,
+                                                           self.hidden_features // self.number_of_heads])
+        # Reshape output image encoding
+        output_image_encoding = output_image_encoding.reshape([output_image_encoding.shape[0],
+                                                           self.number_of_heads,
+                                                           self.hidden_features // self.number_of_heads,
+                                                           output_image_encoding.shape[-2],
+                                                           output_image_encoding.shape[-1]])
+        # Combine tensors and normalize
+        output = np.einsum("bqnc,bnchw->bqnhw",
+                              output_box_embeddings * self.normalization_factor,
+                              output_image_encoding)
+        # Apply softmax
+        output = F.softmax(output.flatten(start_dim=2), dim=-1).view_as(output)
+        # Perform dropout if utilized
+        if self.dropout > 0.0:
+            output = F.dropout(input=output, p=self.dropout, training=self.training)
+        return output.contiguous()
