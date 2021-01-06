@@ -320,3 +320,30 @@ class MultiHeadAttention(nn.Layer):
         if self.dropout > 0.0:
             output = F.dropout(input=output, p=self.dropout, training=self.training)
         return output.contiguous()
+
+class PositionEmbeddingLearned(nn.Layer):
+    """
+    Absolute pos embedding, learned.
+    """
+    def __init__(self, num_pos_feats=256):
+        super().__init__()
+        row_embed_weight_attr = nn.initializer.Uniform()
+        col_embed_weight_attr = nn.initializer.Uniform()
+        self.row_embed = nn.Embedding(50, num_pos_feats, weight_attr=row_embed_weight_attr)
+        self.col_embed = nn.Embedding(50, num_pos_feats, weight_attr=col_embed_weight_attr)
+
+    def forward(self, tensor_list):
+        x = tensor_list
+        h, w = x.shape[-2:]
+        i = paddle.arange(w)
+        j = paddle.arange(h)
+        x_emb = self.col_embed(i)
+        y_emb = self.row_embed(j)
+        x_emb = x_emb.unsqueeze(0)
+        y_emb = y_emb.unsqueeze(1)
+        pos = paddle.concat([
+            x_emb.expand([h, x_emb.shape[1], x_emb.shape[2]]),
+            y_emb.expand([y_emb.shape[0], w, y_emb.shape[2]]),
+        ], axis=-1).transpose(2, 0, 1).unsqueeze(0)
+        pos = pos.expand([x.shape[0], *pos.shape[1:]])
+        return pos
