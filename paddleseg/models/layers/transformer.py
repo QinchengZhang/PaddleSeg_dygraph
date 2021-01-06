@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 12:36:25
 LastEditors: TJUZQC
-LastEditTime: 2020-12-29 12:38:26
+LastEditTime: 2021-01-06 17:11:56
 Description: None
 '''
 from paddle import nn, Tensor
@@ -12,18 +12,20 @@ import copy
 from typing import Optional, List
 import paddle.nn.functional as F
 
+
 class Transformer(nn.Layer):
 
     def __init__(self, d_model=512, nhead=8, num_encoder_layers=6,
                  num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation=nn.LeakyReLU, normalize_before=False,
-                 return_intermediate_dec=False):
+                 return_intermediate_dec=False, initializer=nn.initializer.KaimingNormal):
         super().__init__()
-
+        nn.initializer.set_global_initializer(initializer, initializer)
         encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
                                                 dropout, activation, normalize_before)
         encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
-        self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
+        self.encoder = TransformerEncoder(
+            encoder_layer, num_encoder_layers, encoder_norm)
 
         decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
                                                 dropout, activation, normalize_before)
@@ -31,21 +33,14 @@ class Transformer(nn.Layer):
         self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm,
                                           return_intermediate=return_intermediate_dec)
 
-        self._reset_parameters()
-
         self.d_model = d_model
         self.nhead = nhead
 
-    def _reset_parameters(self):
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
-
     def forward(self, src, mask, query_embed, pos_embed):
         bs, c, h, w = src.shape
-        src = src.flatten(2).permute(2, 0, 1)
-        pos_embed = pos_embed.flatten(2).permute(2, 0, 1)
-        query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
+        src = src.flatten(2).transpose([2, 0, 1])
+        pos_embed = pos_embed.flatten(2).transpose([2, 0, 1])
+        query_embed = query_embed.unsqueeze(1).expand([-1, bs, -1])
         if mask is not None:
             mask = mask.flatten(1)
 
@@ -53,7 +48,7 @@ class Transformer(nn.Layer):
         memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
         hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
                           pos=pos_embed, query_pos=query_embed)
-        return hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w)
+        return hs.transpose(1, 2), memory.transpose(1, 2, 0).reshape(bs, c, h, w)
 
 
 class TransformerEncoder(nn.Layer):
@@ -116,7 +111,7 @@ class TransformerDecoder(nn.Layer):
                 intermediate.append(output)
 
         if self.return_intermediate:
-            return torch.stack(intermediate)
+            return paddle.stack(intermediate)
 
         return output
 
@@ -187,7 +182,8 @@ class TransformerDecoderLayer(nn.Layer):
                  activation=nn.LeakyReLU, normalize_before=False):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.multihead_attn = nn.MultiheadAttention(
+            d_model, nhead, dropout=dropout)
         # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
@@ -280,6 +276,7 @@ def build_transformer(args):
         num_decoder_layers=args.dec_layers,
         normalize_before=args.pre_norm,
         return_intermediate_dec=True,
+        initializer=args.initializer,
     )
 
 
@@ -295,4 +292,5 @@ def _get_activation_fn(activation):
         return F.gelu
     if activation == "glu":
         return F.glu
-    raise RuntimeError(F"activation should be relu, gelu, glu, leaky relu or selu, not {activation}.")
+    raise RuntimeError(
+        F"activation should be relu, gelu, glu, leaky relu or selu, not {activation}.")
