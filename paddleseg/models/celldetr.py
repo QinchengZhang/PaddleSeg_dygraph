@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 13:50:36
 LastEditors: TJUZQC
-LastEditTime: 2020-12-29 15:24:25
+LastEditTime: 2021-01-07 12:19:46
 Description: None
 '''
 from typing import Tuple, Type, Iterable
@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 # from modules.modulated_deform_conv import ModulatedDeformConvPack
 
-from paddleseg.models.layers import HSBottleNeck
+from paddleseg.models.layers import HSBottleNeck, PositionEmbeddingLearned
 from bounding_box_head import BoundingBoxHead
 # ResFeaturePyramidBlock, ResPACFeaturePyramidBlock
 from segmentation import MultiHeadAttention, SegmentationHead
@@ -83,10 +83,11 @@ class CellDETR(nn.Layer):
                              hidden_features, dtype='float32'),
             requires_grad=True)
         # Init embeddings
-        self.row_embedding = nn.Parameter(data=torch.randn(50, hidden_features // 2, dtype='float32'),
-                                          requires_grad=True)
-        self.column_embedding = nn.Parameter(data=torch.randn(50, hidden_features // 2, dtype='float32'),
-                                             requires_grad=True)
+        self.positionembedding = PositionEmbeddingLearned(hidden_features)
+        # self.row_embedding = nn.Parameter(data=torch.randn(50, hidden_features // 2, dtype='float32'),
+        #                                   requires_grad=True)
+        # self.column_embedding = nn.Parameter(data=torch.randn(50, hidden_features // 2, dtype='float32'),
+        #                                      requires_grad=True)
         # Init transformer
         self.transformer = Transformer(d_model=hidden_features, nhead=transformer_attention_heads,
                                        num_encoder_layers=num_encoder_layers, num_decoder_layers=num_decoder_layers,
@@ -155,12 +156,13 @@ class CellDETR(nn.Layer):
         # Get batch size
         batch_size = features.shape[0]
         # Make positional embeddings
-        positional_embeddings = torch.cat([self.column_embedding[:height].unsqueeze(dim=0).expand(height, 1, 1),
-                                           self.row_embedding[:width].unsqueeze(dim=1).expand(1, width, 1)],
-                                          dim=-1).transpose(2, 0, 1).unsqueeze(0).expand(batch_size, 1, 1, 1)
+        positional_embeddings = self.positionembedding(features)
+        # positional_embeddings = torch.cat([self.column_embedding[:height].unsqueeze(dim=0).expand(height, 1, 1),
+        #                                    self.row_embedding[:width].unsqueeze(dim=1).expand(1, width, 1)],
+        #                                   dim=-1).transpose(2, 0, 1).unsqueeze(0).expand(batch_size, 1, 1, 1)
         latent_tensor, features_encoded = self.transformer(
             features, None, self.query_positions, positional_embeddings)
-        latent_tensor = latent_tensor.transpose(2, 0, 1)
+        latent_tensor = latent_tensor.transpose([2, 0, 1])
         # Get class prediction
         # class_prediction = F.softmax(self.class_head(latent_tensor), dim=2)
         # Get bounding boxes
@@ -169,7 +171,7 @@ class CellDETR(nn.Layer):
         # bounding_box_attention_masks = self.segmentation_attention_head(
         #     latent_tensor, features_encoded)
         # Get instance segmentation prediction
-        instance_segmentation_prediction = self.decoder(features, feature_list)
+        instance_segmentation_prediction = self.decoder(features_encoded, feature_list)
         return self.segmentation_final_activation(instance_segmentation_prediction)
 
 

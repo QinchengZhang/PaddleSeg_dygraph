@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 12:36:25
 LastEditors: TJUZQC
-LastEditTime: 2021-01-06 17:11:56
+LastEditTime: 2021-01-07 12:24:44
 Description: None
 '''
 from paddle import nn, Tensor
