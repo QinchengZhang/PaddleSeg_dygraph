@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-24 15:59:19
 LastEditors: TJUZQC
-LastEditTime: 2020-12-11 11:30:55
+LastEditTime: 2021-01-08 22:18:09
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -85,8 +85,6 @@ class Encoder(nn.Layer):
     def __init__(self, split:int=5):
         super().__init__()
 
-        # self.double_conv = nn.Sequential(
-        #     layers.ConvBNReLU(3, 64, 3), layers.ConvBNReLU(64, 64, 3))
         self.double_conv = nn.Sequential(
             layers.HSBottleNeck(3, 64, split), layers.HSBottleNeck(64, 64, split))    
         down_channels = [[64, 128], [128, 256], [256, 512], [512, 512]]
@@ -100,8 +98,6 @@ class Encoder(nn.Layer):
         modules.append(nn.MaxPool2D(kernel_size=2, stride=2))
         modules.append(layers.HSBottleNeck(in_channels, out_channels, split))
         modules.append(layers.HSBottleNeck(out_channels, out_channels, split))
-        # modules.append(layers.ConvBNReLU(in_channels, out_channels, 3))
-        # modules.append(layers.ConvBNReLU(out_channels, out_channels, 3))
         return nn.Sequential(*modules)
 
     def forward(self, x):
@@ -153,8 +149,6 @@ class UpSampling(nn.Layer):
             in_channels *= 2
 
         self.double_conv = nn.Sequential(
-            # layers.ConvBNReLU(in_channels, out_channels, 3),
-            # layers.ConvBNReLU(out_channels, out_channels, 3))
             layers.HSBottleNeck(in_channels, out_channels, split),
             layers.HSBottleNeck(out_channels, out_channels, split))
 

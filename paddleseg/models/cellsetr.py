@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 13:50:36
 LastEditors: TJUZQC
-LastEditTime: 2021-01-08 22:16:19
+LastEditTime: 2021-01-08 22:22:49
 Description: None
 '''
 from typing import Iterable, Tuple, Type
@@ -59,10 +59,6 @@ class CellSETR(nn.Layer):
             [number_of_query_positions, hidden_features], dtype='float32')
         # Init embeddings
         self.positionembedding = PositionEmbeddingLearned(hidden_features)
-        # self.row_embedding = nn.Parameter(data=paddle.randn(50, hidden_features // 2, dtype='float32'),
-        #                                   requires_grad=True)
-        # self.column_embedding = nn.Parameter(data=paddle.randn(50, hidden_features // 2, dtype='float32'),
-        #                                      requires_grad=True)
 
         # Init transformer
         self.transformer = Transformer(d_model=hidden_features, nhead=transformer_attention_heads,
@@ -132,23 +128,3 @@ class CellSETR(nn.Layer):
         instance_segmentation_prediction = self.cls(decoded_features)
 
         return self.segmentation_final_activation(instance_segmentation_prediction)
-
-
-if __name__ == '__main__':
-    # Init model
-    detr = CellSETR().cpu()
-    # Print number of parameters
-    print("DETR # parameters", sum([p.numel() for p in detr.parameters()]))
-    # Model into eval mode
-    detr.eval()
-    # Predict
-    class_prediction, bounding_box_prediction, instance_segmentation_prediction = detr(
-        paddle.randn(2, 3, 128, 128).cpu())
-    # Print shapes
-    print(class_prediction.shape)
-    print(bounding_box_prediction.shape)
-    print(instance_segmentation_prediction.shape)
-    # Calc pseudo loss and perform backward pass
-    loss = class_prediction.sum() + bounding_box_prediction.sum() + \
-        instance_segmentation_prediction.sum()
-    loss.backward()

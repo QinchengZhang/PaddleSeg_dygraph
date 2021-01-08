@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 12:36:25
 LastEditors: TJUZQC
-LastEditTime: 2021-01-08 22:15:58
+LastEditTime: 2021-01-08 22:29:49
 Description: None
 '''
 from typing import Optional
@@ -17,13 +17,12 @@ class CVTransformer(nn.Layer):
     def __init__(self, d_model=512, nhead=8, num_encoder_layers=6,
                  num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation=nn.LeakyReLU, normalize_before=False,
-                 return_intermediate_dec=False, initializer=nn.initializer.KaimingNormal):
+                 return_intermediate_dec=False, initializer=nn.initializer.KaimingNormal()):
         super(CVTransformer, self).__init__()
-        # nn.initializer.set_global_initializer(initializer, initializer)
         encoder_layer_params = (
-            d_model, nhead, dim_feedforward, dropout, activation, normalize_before)
+            d_model, nhead, dim_feedforward, dropout, activation, normalize_before, initializer)
         decoder_layer_params = (
-            d_model, nhead, dim_feedforward, dropout, activation, normalize_before)
+            d_model, nhead, dim_feedforward, dropout, activation, normalize_before, initializer)
         encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
         self.encoder = CVTransformerEncoder(
             encoder_layer_params, num_encoder_layers, encoder_norm)
@@ -87,7 +86,6 @@ class CVTransformerDecoder(nn.Layer):
     def forward(self, tgt, memory,
                 tgt_mask: Optional[Tensor] = None,
                 memory_mask: Optional[Tensor] = None,
-                tgt_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
                 query_pos: Optional[Tensor] = None):
         output = tgt
@@ -97,7 +95,6 @@ class CVTransformerDecoder(nn.Layer):
         for layer in self.layers:
             output = layer(output, memory, tgt_mask=tgt_mask,
                            memory_mask=memory_mask,
-                           tgt_key_padding_mask=tgt_key_padding_mask,
                            pos=pos, query_pos=query_pos)
             if self.return_intermediate:
                 intermediate.append(self.norm(output))
@@ -117,16 +114,16 @@ class CVTransformerDecoder(nn.Layer):
 class CVTransformerEncoderLayer(nn.Layer):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
-                 activation=nn.LeakyReLU, normalize_before=False):
+                 activation=nn.LeakyReLU, normalize_before=False, initializer=nn.initializer.KaimingNormal()):
         super(CVTransformerEncoderLayer, self).__init__()
-        self.self_attn = nn.MultiHeadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn = nn.MultiHeadAttention(d_model, nhead, dropout=dropout, weight_attr=initializer, bias_attr=initializer)
         # Implementation of Feedforward model
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.linear1 = nn.Linear(d_model, dim_feedforward, weight_attr=initializer, bias_attr=initializer)
         self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model)
+        self.linear2 = nn.Linear(dim_feedforward, d_model, weight_attr=initializer, bias_attr=initializer)
 
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
+        self.norm1 = nn.LayerNorm(d_model, weight_attr=initializer, bias_attr=initializer)
+        self.norm2 = nn.LayerNorm(d_model, weight_attr=initializer, bias_attr=initializer)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
 
@@ -139,11 +136,10 @@ class CVTransformerEncoderLayer(nn.Layer):
     def forward_post(self,
                      src,
                      src_mask: Optional[Tensor] = None,
-                     src_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None):
         q = k = self.with_pos_embed(src, pos)
         print(q.shape, k.shape, src.shape)
-        src2 = self.self_attn(q, k, value=src, attn_mask=src_mask)  # [0]
+        src2 = self.self_attn(q, k, value=src, attn_mask=src_mask)
         src = src + self.dropout1(src2)
         src = self.norm1(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
@@ -153,11 +149,10 @@ class CVTransformerEncoderLayer(nn.Layer):
 
     def forward_pre(self, src,
                     src_mask: Optional[Tensor] = None,
-                    src_key_padding_mask: Optional[Tensor] = None,
                     pos: Optional[Tensor] = None):
         src2 = self.norm1(src)
         q = k = self.with_pos_embed(src2, pos)
-        src2 = self.self_attn(q, k, value=src2, attn_mask=src_mask)  # [0]
+        src2 = self.self_attn(q, k, value=src2, attn_mask=src_mask)
         src = src + self.dropout1(src2)
         src2 = self.norm2(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src2))))
@@ -166,29 +161,28 @@ class CVTransformerEncoderLayer(nn.Layer):
 
     def forward(self, src,
                 src_mask: Optional[Tensor] = None,
-                src_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None):
         if self.normalize_before:
-            return self.forward_pre(src, src_mask, src_key_padding_mask, pos)
-        return self.forward_post(src, src_mask, src_key_padding_mask, pos)
+            return self.forward_pre(src, src_mask, pos)
+        return self.forward_post(src, src_mask, pos)
 
 
 class CVTransformerDecoderLayer(nn.Layer):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
-                 activation=nn.LeakyReLU, normalize_before=False):
+                 activation=nn.LeakyReLU, normalize_before=False, initializer=nn.initializer.KaimingNormal()):
         super(CVTransformerDecoderLayer, self).__init__()
-        self.self_attn = nn.MultiHeadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn = nn.MultiHeadAttention(d_model, nhead, dropout=dropout, weight_attr=initializer, bias_attr=initializer)
         self.multihead_attn = nn.MultiHeadAttention(
-            d_model, nhead, dropout=dropout)
+            d_model, nhead, dropout=dropout, weight_attr=initializer)
         # Implementation of Feedforward model
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.linear1 = nn.Linear(d_model, dim_feedforward, weight_attr=initializer, bias_attr=initializer)
         self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model)
+        self.linear2 = nn.Linear(dim_feedforward, d_model, weight_attr=initializer, bias_attr=initializer)
 
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
-        self.norm3 = nn.LayerNorm(d_model)
+        self.norm1 = nn.LayerNorm(d_model, weight_attr=initializer, bias_attr=initializer)
+        self.norm2 = nn.LayerNorm(d_model, weight_attr=initializer, bias_attr=initializer)
+        self.norm3 = nn.LayerNorm(d_model, weight_attr=initializer, bias_attr=initializer)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
         self.dropout3 = nn.Dropout(dropout)
@@ -202,20 +196,17 @@ class CVTransformerDecoderLayer(nn.Layer):
     def forward_post(self, tgt, memory,
                      tgt_mask: Optional[Tensor] = None,
                      memory_mask: Optional[Tensor] = None,
-                     tgt_key_padding_mask: Optional[Tensor] = None,
-                     memory_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None,
                      query_pos: Optional[Tensor] = None):
         q = k = self.with_pos_embed(tgt, query_pos)
-        tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask)  # [0]
+        tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask)
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
         query = self.with_pos_embed(tgt, query_pos)
         key = self.with_pos_embed(memory, pos)
-        # print(query.shape, key.shape, memory.shape)
         tgt2 = self.multihead_attn(query=query,
                                    key=key,
-                                   value=memory, attn_mask=memory_mask)  # [0]
+                                   value=memory, attn_mask=memory_mask)
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
@@ -226,18 +217,16 @@ class CVTransformerDecoderLayer(nn.Layer):
     def forward_pre(self, tgt, memory,
                     tgt_mask: Optional[Tensor] = None,
                     memory_mask: Optional[Tensor] = None,
-                    tgt_key_padding_mask: Optional[Tensor] = None,
-                    memory_key_padding_mask: Optional[Tensor] = None,
                     pos: Optional[Tensor] = None,
                     query_pos: Optional[Tensor] = None):
         tgt2 = self.norm1(tgt)
         q = k = self.with_pos_embed(tgt2, query_pos)
-        tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask)  # [0]
+        tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask)
         tgt = tgt + self.dropout1(tgt2)
         tgt2 = self.norm2(tgt)
         tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
                                    key=self.with_pos_embed(memory, pos),
-                                   value=memory, attn_mask=memory_mask)  # [0]
+                                   value=memory, attn_mask=memory_mask)
         tgt = tgt + self.dropout2(tgt2)
         tgt2 = self.norm3(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
@@ -247,18 +236,16 @@ class CVTransformerDecoderLayer(nn.Layer):
     def forward(self, tgt, memory,
                 tgt_mask: Optional[Tensor] = None,
                 memory_mask: Optional[Tensor] = None,
-                tgt_key_padding_mask: Optional[Tensor] = None,
-                memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
                 query_pos: Optional[Tensor] = None):
         if self.normalize_before:
             return self.forward_pre(tgt, memory, tgt_mask, memory_mask,
-                                    tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos)
+                                    pos, query_pos)
         return self.forward_post(tgt, memory, tgt_mask, memory_mask,
-                                 tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos)
+                                 pos, query_pos)
 
 
-def build_CVtransformer(args):
+def build_cvtransformer(args):
     return CVTransformer(
         d_model=args.hidden_dim,
         dropout=args.dropout,
