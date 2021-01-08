@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-22 14:57:05
 LastEditors: TJUZQC
-LastEditTime: 2021-01-07 12:16:16
+LastEditTime: 2021-01-08 15:42:36
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -23,4 +23,4 @@ Description: None
 from .layer_libs import ConvBNReLU, ConvBN, SeparableConvBNReLU, DepthwiseConvBN, AuxLayer, SyncBatchNorm, HSBottleNeck, HSBlockBNReLU, HSBlock, AttentionBlock, PositionEmbeddingLearned
 from .activation import Activation
 from .pyramid_pool import ASPPModule, PPModule
-from .transformer import Transformer
+from .transformer import *

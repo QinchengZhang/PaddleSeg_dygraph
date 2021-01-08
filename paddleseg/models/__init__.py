@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-22 14:57:05
 LastEditors: TJUZQC
-LastEditTime: 2021-01-06 17:00:36
+LastEditTime: 2021-01-08 22:09:01
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -35,10 +35,4 @@ from .pspnet import *
 from .unet import UNet
 from .hsunet import HS_UNet
 from .hsattunet import HS_Att_UNet
-# from .celldetr import CellDETR
-# from .unet import Decoder as UNetDecoder
-# from .unet import Encoder as UNetEncoder
-# from .hsunet import Decoder as HSUNetDecoder
-# from .hsunet import Encoder as HSUNetEncoder
-# from .hsattunet import Decoder as HSAttUNetDecoder
-# from .hsattunet import Encoder as HSAttUNetEncoder
+from .cellsetr import CellSETR
