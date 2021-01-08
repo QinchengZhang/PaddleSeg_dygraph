@@ -1,0 +1,44 @@
+batch_size: 2
+iters: 100000
+
+train_dataset:
+  type: BreastCancer
+  dataset_root: F:/DATASET/breast4732
+  transforms:
+    - type: Resize
+      target_size: [256, 256]
+    - type: RandomHorizontalFlip
+    - type: RandomDistort
+    - type: Normalize
+  mode: train
+
+val_dataset:
+  type: BreastCancer
+  dataset_root: F:/DATASET/breast4732
+  transforms:
+    - type: Resize
+      target_size: [256, 256]
+    - type: Normalize
+  mode: val
+
+model:
+  type: CellSETR
+  num_classes: 2
+  segmentation_head_final_activation: Softmax
+
+optimizer:
+  type: sgd
+  momentum: 0.9
+  weight_decay: 0.00004
+
+learning_rate:
+  value: 0.01
+  decay:
+    type: poly
+    power: 0.9
+    end_lr: 0.0001
+
+loss:
+  types:
+    - type: CrossEntropyLoss
+  coef: [1]

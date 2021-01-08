@@ -3,18 +3,20 @@
 Author: TJUZQC
 Date: 2020-12-29 13:50:36
 LastEditors: TJUZQC
-LastEditTime: 2021-01-08 22:22:49
+LastEditTime: 2021-01-08 23:21:43
 Description: None
 '''
 from typing import Iterable, Tuple, Type
 
 import paddle
 import paddle.nn as nn
+from paddleseg.cvlibs import manager
 from paddleseg.models.hsunet import Decoder, Encoder
 from paddleseg.models.layers import CVTransformer as Transformer
 from paddleseg.models.layers import HSBottleNeck, PositionEmbeddingLearned
 
 
+@manager.MODELS.add_component
 class CellSETR(nn.Layer):
     """
     This class implements a DETR (Facebook AI) like semantic segmentation model.
@@ -28,11 +30,11 @@ class CellSETR(nn.Layer):
                      (1, 64), (64, 128), (128, 256), (256, 256), (256, 512), (512, 512)),
                  num_encoder_layers: int = 3,
                  num_decoder_layers: int = 2,
-                 dropout: float = 0.0,
+                 dropout: float = 0.1,
                  transformer_attention_heads: int = 8,
-                 transformer_activation: Type = nn.LeakyReLU,
+                 transformer_activation: str = 'leakyrelu',
                  segmentation_attention_heads: int = 8,
-                 segmentation_head_final_activation: Type = nn.Sigmoid) -> None:
+                 segmentation_head_final_activation: str = 'sigmoid') -> None:
         """
         Constructor method
         :param num_classes: (int) Number of classes in the dataset
@@ -60,11 +62,20 @@ class CellSETR(nn.Layer):
         # Init embeddings
         self.positionembedding = PositionEmbeddingLearned(hidden_features)
 
+        # Init transformer activation
+        self.transformer_activation = _get_activation(transformer_activation)
+
+        # Init segmentation final activation
+        self.segmentation_final_activation = _get_activation(segmentation_head_final_activation)
+        self.segmentation_final_activation = self.segmentation_final_activation(axis=1) if isinstance(
+            self.segmentation_final_activation(), nn.Softmax) else self.segmentation_final_activation()
+
+
         # Init transformer
         self.transformer = Transformer(d_model=hidden_features, nhead=transformer_attention_heads,
                                        num_encoder_layers=num_encoder_layers, num_decoder_layers=num_decoder_layers,
                                        dropout=dropout, dim_feedforward=4 * hidden_features,
-                                       activation=transformer_activation)
+                                       activation=self.transformer_activation)
 
         # Init segmentation attention head
         self.segmentation_attention_head = nn.MultiHeadAttention(
@@ -75,9 +86,7 @@ class CellSETR(nn.Layer):
         self.decoder = Decoder(align_corners=False, use_deconv=True, split=5)
         # Init classification layer
         self.cls = HSBottleNeck(in_channels=64, out_channels=num_classes)
-        # Init final segmentation activation
-        self.segmentation_final_activation = segmentation_head_final_activation(axis=1) if isinstance(
-            segmentation_head_final_activation(), nn.Softmax) else segmentation_head_final_activation()
+        
 
     def get_parameters(self, lr_main: float = 1e-04, lr_backbone: float = 1e-05) -> Iterable:
         """
@@ -128,3 +137,32 @@ class CellSETR(nn.Layer):
         instance_segmentation_prediction = self.cls(decoded_features)
 
         return self.segmentation_final_activation(instance_segmentation_prediction)
+
+def _get_activation(activation:str):
+    activation = activation.lower()
+    switch = {
+            'elu': nn.ELU,
+            'gelu': nn.GELU,
+            'hardshrink': nn.Hardshrink,
+            'hardswish': nn.Hardswish,
+            'tanh': nn.Tanh,
+            'hardtanh': nn.Hardtanh,
+            'prelu': nn.PReLU,
+            'relu': nn.ReLU,
+            'relu6': nn.ReLU6,
+            'selu': nn.SELU,
+            'leakyrelu': nn.LeakyReLU,
+            'sigmoid': nn.Sigmoid,
+            'hardsigmoid': nn.Hardsigmoid,
+            'softmax': nn.Softmax,
+            'softplus': nn.Softplus,
+            'softshrink': nn.Softshrink,
+            'softsign': nn.Softsign,
+            'swish': nn.Swish,
+            'tanhshrink': nn.Tanhshrink,
+            'thresholdedrelu': nn.ThresholdedReLU,
+            'logsigmoid': nn.LogSigmoid,
+            'logsoftmax': nn.LogSoftmax,
+            'maxout': nn.Maxout,
+    }
+    return switch.get(activation, None)
