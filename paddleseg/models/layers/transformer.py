@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 12:36:25
 LastEditors: TJUZQC
-LastEditTime: 2021-01-08 22:29:49
+LastEditTime: 2021-01-11 12:47:08
 Description: None
 '''
 from typing import Optional
@@ -138,7 +138,6 @@ class CVTransformerEncoderLayer(nn.Layer):
                      src_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None):
         q = k = self.with_pos_embed(src, pos)
-        print(q.shape, k.shape, src.shape)
         src2 = self.self_attn(q, k, value=src, attn_mask=src_mask)
         src = src + self.dropout1(src2)
         src = self.norm1(src)

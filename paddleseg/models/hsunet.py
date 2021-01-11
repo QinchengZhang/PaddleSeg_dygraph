@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-24 15:59:19
 LastEditors: TJUZQC
-LastEditTime: 2021-01-08 22:18:09
+LastEditTime: 2021-01-11 14:27:34
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -87,10 +87,10 @@ class Encoder(nn.Layer):
 
         self.double_conv = nn.Sequential(
             layers.HSBottleNeck(3, 64, split), layers.HSBottleNeck(64, 64, split))    
-        down_channels = [[64, 128], [128, 256], [256, 512], [512, 512]]
+        self.down_channels = [[64, 128], [128, 256], [256, 512], [512, 512]]
         self.down_sample_list = nn.LayerList([
             self.down_sampling(channel[0], channel[1], split)
-            for channel in down_channels
+            for channel in self.down_channels
         ])
 
     def down_sampling(self, in_channels, out_channels, split=5):
@@ -113,10 +113,10 @@ class Decoder(nn.Layer):
     def __init__(self, align_corners, use_deconv=False, split=5):
         super().__init__()
 
-        up_channels = [[512, 256], [256, 128], [128, 64], [64, 64]]
+        self.up_channels = [[512, 256], [256, 128], [128, 64], [64, 64]]
         self.up_sample_list = nn.LayerList([
             UpSampling(channel[0], channel[1], align_corners, use_deconv, split)
-            for channel in up_channels
+            for channel in self.up_channels
         ])
 
     def forward(self, x, short_cuts):

@@ -3,33 +3,32 @@
 Author: TJUZQC
 Date: 2020-12-29 13:50:36
 LastEditors: TJUZQC
-LastEditTime: 2021-01-11 14:39:55
+LastEditTime: 2021-01-11 14:31:58
 Description: None
 '''
-from typing import Iterable, Tuple, Type
+from typing import Iterable
 
 import paddle
 import paddle.nn as nn
 from paddleseg.cvlibs import manager
-from paddleseg.models.hsunet import Decoder, Encoder
+from paddleseg.models.hsunet import Encoder
 from paddleseg.models.layers import CVTransformer as Transformer
 from paddleseg.models.layers import HSBottleNeck, PositionEmbeddingLearned
+from paddle.nn import functional as F
 
 
 @manager.MODELS.add_component
-class CellSETR(nn.Layer):
+class TransUNet(nn.Layer):
     """
-    This class implements a DETR (Facebook AI) like semantic segmentation model.
+    This class implements a TransUNet like semantic segmentation model.
     """
 
     def __init__(self,
                  num_classes: int = 3,
                  number_of_query_positions: int = 12,
                  hidden_features=512,
-                 backbone_channels: Tuple[Tuple[int, int], ...] = (
-                     (1, 64), (64, 128), (128, 256), (256, 256), (256, 512), (512, 512)),
-                 num_encoder_layers: int = 3,
-                 num_decoder_layers: int = 2,
+                 num_encoder_layers: int = 6,
+                 num_decoder_layers: int = 6,
                  dropout: float = 0.1,
                  transformer_attention_heads: int = 8,
                  transformer_activation: str = 'leakyrelu',
@@ -40,7 +39,6 @@ class CellSETR(nn.Layer):
         :param num_classes: (int) Number of classes in the dataset
         :param number_of_query_positions: (int) Number of query positions
         :param hidden_features: (int) Number of hidden features in the transformer module
-        :param backbone_channels: (Tuple[Tuple[int, int], ...]) In and output channels of each block in the backbone
         :param num_encoder_layers: (int) Number of layers in encoder part of the transformer module
         :param num_decoder_layers: (int) Number of layers in decoder part of the transformer module
         :param dropout: (float) Dropout factor used in transformer module and segmentation head
@@ -50,13 +48,11 @@ class CellSETR(nn.Layer):
         :param segmentation_head_final_activation: (Type) Type of activation function to be applied to the output pred
         """
         # Call super constructor
-        super(CellSETR, self).__init__()
+        super(TransUNet, self).__init__()
         # Init backbone
         self.encoder = Encoder(split=5)
         # Init convolution mapping to match transformer dims
-        # self.convolution_mapping = nn.Conv2D(in_channels=backbone_channels[-1][-1], out_channels=hidden_features,
-        #                                      kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias_attr=True)
-        self.convolution_mapping = HSBottleNeck(in_channels=backbone_channels[-1][-1], out_channels=hidden_features)
+        self.convolution_mapping = HSBottleNeck(in_channels=self.encoder.down_channels[-1][-1], out_channels=hidden_features)
         # Init query positions
         self.query_positions = self.create_parameter(
             [number_of_query_positions, hidden_features], dtype='float32')
@@ -79,12 +75,12 @@ class CellSETR(nn.Layer):
                                        activation=self.transformer_activation)
 
         # Init segmentation attention head
-        # self.segmentation_attention_head = nn.MultiHeadAttention(
-        #     embed_dim=hidden_features,
-        #     num_heads=segmentation_attention_heads,
-        #     dropout=dropout)
+        self.segmentation_attention_head = nn.MultiHeadAttention(
+            embed_dim=hidden_features,
+            num_heads=segmentation_attention_heads,
+            dropout=dropout)
         # Init segmentation head
-        self.decoder = Decoder(align_corners=False, use_deconv=True, split=5)
+        self.decoder = AttentionDecoder(align_corners=False, use_deconv=True, split=5)
         # Init classification layer
         self.cls = HSBottleNeck(in_channels=64, out_channels=num_classes)
         
@@ -132,7 +128,7 @@ class CellSETR(nn.Layer):
         # Get transformer encoded features
         latent_tensor, features_encoded = self.transformer(
             features, self.query_positions, positional_embeddings)
-        # latent_tensor = latent_tensor.transpose([2, 0, 1])
+        latent_tensor = latent_tensor.transpose([2, 0, 1])
         # Get instance segmentation prediction
         decoded_features = self.decoder(features_encoded, feature_list)
         instance_segmentation_prediction = self.cls(decoded_features)
@@ -167,3 +163,60 @@ def _get_activation(activation:str):
             'maxout': nn.Maxout,
     }
     return switch.get(activation, None)
+
+class AttentionDecoder(nn.Layer):
+    def __init__(self, align_corners, use_deconv=False, split=5):
+        super(AttentionDecoder, self).__init__()
+
+        self.up_channels = [[512, 256], [256, 128], [128, 64], [64, 64]]
+        self.up_sample_list = nn.LayerList([
+            UpSampling(channel[0], channel[1], align_corners, use_deconv, split)
+            for channel in self.up_channels
+        ])
+        
+
+    def forward(self, x, short_cuts):
+        for i in range(len(short_cuts)):
+            x = self.up_sample_list[i](x, short_cuts[-(i + 1)])
+        return x
+
+
+class UpSampling(nn.Layer):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 align_corners,
+                 use_deconv=False,
+                 split=5):
+        super().__init__()
+
+        self.align_corners = align_corners
+
+        self.use_deconv = use_deconv
+        if self.use_deconv:
+            self.deconv = nn.Conv2DTranspose(
+                in_channels,
+                out_channels // 2,
+                kernel_size=2,
+                stride=2,
+                padding=0)
+            in_channels = in_channels + out_channels // 2
+        else:
+            in_channels *= 2
+
+        self.double_conv = nn.Sequential(
+            HSBottleNeck(in_channels, out_channels, split),
+            HSBottleNeck(out_channels, out_channels, split))
+
+    def forward(self, x, short_cut):
+        if self.use_deconv:
+            x = self.deconv(x)
+        else:
+            x = F.interpolate(
+                x,
+                short_cut.shape[2:],
+                mode='bilinear',
+                align_corners=self.align_corners)
+        x = paddle.concat([x, short_cut], axis=1)
+        x = self.double_conv(x)
+        return x
