@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-22 14:57:05
 LastEditors: TJUZQC
-LastEditTime: 2021-01-08 22:09:01
+LastEditTime: 2021-01-11 16:49:57
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -36,3 +36,4 @@ from .unet import UNet
 from .hsunet import HS_UNet
 from .hsattunet import HS_Att_UNet
 from .cellsetr import CellSETR
+from .transunet import TransUNet
