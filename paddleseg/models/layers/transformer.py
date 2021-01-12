@@ -3,13 +3,42 @@
 Author: TJUZQC
 Date: 2020-12-29 12:36:25
 LastEditors: TJUZQC
-LastEditTime: 2021-01-11 12:47:08
+LastEditTime: 2021-01-12 15:28:07
 Description: None
 '''
 from typing import Optional
 
 import paddle
 from paddle import Tensor, nn
+
+class PositionEmbeddingLearned(nn.Layer):
+    """
+    Absolute pos embedding, learned.
+    """
+
+    def __init__(self, num_pos_feats=256):
+        super().__init__()
+        row_embed_weight_attr = nn.initializer.Uniform()
+        col_embed_weight_attr = nn.initializer.Uniform()
+        self.row_embed = nn.Embedding(
+            50, num_pos_feats//2, weight_attr=row_embed_weight_attr)
+        self.col_embed = nn.Embedding(
+            50, num_pos_feats//2, weight_attr=col_embed_weight_attr)
+
+    def forward(self, x):
+        b, _, h, w = x.shape
+        i = paddle.arange(w)
+        j = paddle.arange(h)
+        x_emb = self.col_embed(i)
+        y_emb = self.row_embed(j)
+        x_emb = x_emb.unsqueeze(0)
+        y_emb = y_emb.unsqueeze(1)
+        x_emb = x_emb.expand([h, x_emb.shape[1], x_emb.shape[2]])
+        y_emb = y_emb.expand([y_emb.shape[0], w, y_emb.shape[2]])
+        pos = paddle.concat([x_emb, y_emb, ], axis=-
+                            1).transpose([2, 0, 1]).unsqueeze(0)
+        pos = pos.expand([b, *pos.shape[1:]])
+        return pos
 
 
 class CVTransformer(nn.Layer):
