@@ -1,11 +1,3 @@
-# -*- coding: utf-8 -*-
-'''
-Author: TJUZQC
-Date: 2020-11-22 14:57:05
-LastEditors: TJUZQC
-LastEditTime: 2021-01-12 13:39:46
-Description: None
-'''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,12 +13,7 @@ Description: None
 # limitations under the License.
 
 from .dataset import Dataset
-from .ade import ADE20K
-from .breast_cancer import BreastCancer
 from .cityscapes import Cityscapes
-from .optic_disc_seg import OpticDiscSeg
-from .remotesensing import RemoteSensing
 from .voc import PascalVOC
-from .tn_scui2020 import TN_SCUI2020
-from .segpc2021 import SegPC2021
-from .bjsclc import BJSCLC
+from .ade import ADE20K
+from .optic_disc_seg import OpticDiscSeg

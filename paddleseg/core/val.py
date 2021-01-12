@@ -1,11 +1,3 @@
-# -*- coding: utf-8 -*-
-'''
-Author: TJUZQC
-Date: 2020-11-25 16:12:55
-LastEditors: TJUZQC
-LastEditTime: 2020-12-09 17:09:54
-Description: None
-'''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,72 +14,145 @@ Description: None
 
 import os
 
-import cv2
 import numpy as np
 import paddle
-import tqdm
+import paddle.nn.functional as F
 
-from paddleseg.utils import ConfusionMatrix, Timer, calculate_eta, logger
+from paddleseg.utils import metrics, Timer, calculate_eta, logger, progbar
+from paddleseg.core import infer
 
 np.set_printoptions(suppress=True)
 
 
-def evaluate(model, eval_dataset=None, iter_id=None):
-    model.eval()
+def evaluate(model,
+             eval_dataset,
+             aug_eval=False,
+             scales=1.0,
+             flip_horizontal=True,
+             flip_vertical=False,
+             is_slide=False,
+             stride=None,
+             crop_size=None,
+             num_workers=0):
+    """
+    Launch evalution.
 
-    total_iters = len(eval_dataset)
-    conf_mat = ConfusionMatrix(
-        max(eval_dataset.num_classes, 2), streaming=True)
+    Args:
+        model（nn.Layer): A sementic segmentation model.
+        eval_dataset (paddle.io.Dataset): Used to read and process validation datasets.
+        aug_eval (bool, optional): Whether to use mulit-scales and flip augment for evaluation. Default: False.
+        scales (list|float, optional): Scales for augment. It is valid when `aug_eval` is True. Default: 1.0.
+        flip_horizontal (bool, optional): Whether to use flip horizontally augment. It is valid when `aug_eval` is True. Default: True.
+        flip_vertical (bool, optional): Whether to use flip vertically augment. It is valid when `aug_eval` is True. Default: False.
+        is_slide (bool, optional): Whether to evaluate by sliding window. Default: False.
+        stride (tuple|list, optional): The stride of sliding window, the first is width and the second is height.
+            It should be provided when `is_slide` is True.
+        crop_size (tuple|list, optional):  The crop size of sliding window, the first is width and the second is height.
+            It should be provided when `is_slide` is True.
+        num_workers (int, optional): Num workers for data loader. Default: 0.
+
+    Returns:
+        float: The mIoU of validation datasets.
+        float: The accuracy of validation datasets.
+    """
+    model.eval()
+    nranks = paddle.distributed.ParallelEnv().nranks
+    local_rank = paddle.distributed.ParallelEnv().local_rank
+    if nranks > 1:
+        # Initialize parallel environment if not done.
+        if not paddle.distributed.parallel.parallel_helper._is_parallel_ctx_initialized(
+        ):
+            paddle.distributed.init_parallel_env()
+    batch_sampler = paddle.io.DistributedBatchSampler(
+        eval_dataset, batch_size=1, shuffle=False, drop_last=False)
+    loader = paddle.io.DataLoader(
+        eval_dataset,
+        batch_sampler=batch_sampler,
+        num_workers=num_workers,
+        return_list=True,
+    )
+
+    total_iters = len(loader)
+    intersect_area_all = 0
+    pred_area_all = 0
+    label_area_all = 0
 
     logger.info("Start evaluating (total_samples={}, total_iters={})...".format(
         len(eval_dataset), total_iters))
+    progbar_val = progbar.Progbar(target=total_iters, verbose=1)
     timer = Timer()
-    timer.start()
-    for iter, (im, im_info, label) in tqdm.tqdm(
-            enumerate(eval_dataset), total=total_iters):
-        im = paddle.to_tensor(im)
-        logits = model(im)
-        pred = paddle.argmax(
-            logits[0], axis=1) if eval_dataset.num_classes > 1 else paddle.nn.functional.sigmoid(logits[0])
-        pred = pred.numpy().astype('float32')
-        if eval_dataset.num_classes == 1:
-            pred[pred >= 0.5] = 1.
-            pred[pred < 0.5] = 0.
-        pred = np.squeeze(pred)
-        
-        # count = []
-        # for i in np.unique(pred):
-        #     count.append(np.sum(pred==i))
-        # print(np.unique(pred), '\n', count)
-        for info in im_info[::-1]:
-            if info[0] == 'resize':
-                h, w = info[1][0], info[1][1]
-                pred = cv2.resize(pred, (w, h), cv2.INTER_NEAREST)
-            elif info[0] == 'padding':
-                h, w = info[1][0], info[1][1]
-                pred = pred[0:h, 0:w]
+    with paddle.no_grad():
+        for iter, (im, label) in enumerate(loader):
+            reader_cost = timer.elapsed_time()
+            label = label.astype('int64')
+
+            ori_shape = label.shape[-2:]
+            if aug_eval:
+                pred = infer.aug_inference(
+                    model,
+                    im,
+                    ori_shape=ori_shape,
+                    transforms=eval_dataset.transforms.transforms,
+                    scales=scales,
+                    flip_horizontal=flip_horizontal,
+                    flip_vertical=flip_vertical,
+                    is_slide=is_slide,
+                    stride=stride,
+                    crop_size=crop_size)
             else:
-                raise ValueError("Unexpected info '{}' in im_info".format(
-                    info[0]))
-        pred = pred[np.newaxis, :, :, np.newaxis]
-        pred = pred.astype('int64')
-        mask = label != eval_dataset.ignore_index
-        # To-DO Test Execution Time
-        conf_mat.calculate(pred=pred, label=label, mask=mask)
-        _, iou = conf_mat.mean_iou()
+                pred = infer.inference(
+                    model,
+                    im,
+                    ori_shape=ori_shape,
+                    transforms=eval_dataset.transforms.transforms,
+                    is_slide=is_slide,
+                    stride=stride,
+                    crop_size=crop_size)
 
-        time_iter = timer.elapsed_time()
-        remain_iter = total_iters - iter - 1
-        logger.debug(
-            "[EVAL] iter_id={}, iter={}/{}, IoU={:4f}, sec/iter={:.4f} | ETA {}"
-            .format(iter_id, iter + 1, total_iters, iou, time_iter,
-                    calculate_eta(remain_iter, time_iter)))
-        timer.restart()
+            intersect_area, pred_area, label_area = metrics.calculate_area(
+                pred,
+                label,
+                eval_dataset.num_classes,
+                ignore_index=eval_dataset.ignore_index)
 
-    class_iou, miou = conf_mat.mean_iou()
-    class_acc, acc = conf_mat.accuracy()
+            # Gather from all ranks
+            if nranks > 1:
+                intersect_area_list = []
+                pred_area_list = []
+                label_area_list = []
+                paddle.distributed.all_gather(intersect_area_list, intersect_area)
+                paddle.distributed.all_gather(pred_area_list, pred_area)
+                paddle.distributed.all_gather(label_area_list, label_area)
+
+                # Some image has been evaluated and should be eliminated in last iter
+                if (iter + 1) * nranks > len(eval_dataset):
+                    valid = len(eval_dataset) - iter * nranks
+                    intersect_area_list = intersect_area_list[:valid]
+                    pred_area_list = pred_area_list[:valid]
+                    label_area_list = label_area_list[:valid]
+
+                for i in range(len(intersect_area_list)):
+                    intersect_area_all = intersect_area_all + intersect_area_list[i]
+                    pred_area_all = pred_area_all + pred_area_list[i]
+                    label_area_all = label_area_all + label_area_list[i]
+            else:
+                intersect_area_all = intersect_area_all + intersect_area
+                pred_area_all = pred_area_all + pred_area
+                label_area_all = label_area_all + label_area
+            batch_cost = timer.elapsed_time()
+            timer.restart()
+
+            if local_rank == 0:
+                progbar_val.update(iter + 1, [('batch_cost', batch_cost),
+                                              ('reader cost', reader_cost)])
+
+    class_iou, miou = metrics.mean_iou(intersect_area_all, pred_area_all,
+                                       label_area_all)
+    class_acc, acc = metrics.accuracy(intersect_area_all, pred_area_all)
+    kappa = metrics.kappa(intersect_area_all, pred_area_all, label_area_all)
+
     logger.info("[EVAL] #Images={} mIoU={:.4f} Acc={:.4f} Kappa={:.4f} ".format(
-        len(eval_dataset), miou, acc, conf_mat.kappa()))
+        len(eval_dataset), miou, acc, kappa))
     logger.info("[EVAL] Class IoU: \n" + str(np.round(class_iou, 4)))
     logger.info("[EVAL] Class Acc: \n" + str(np.round(class_acc, 4)))
     return miou, acc

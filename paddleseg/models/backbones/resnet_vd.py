@@ -36,7 +36,6 @@ class ConvBNLayer(nn.Layer):
             groups=1,
             is_vd_mode=False,
             act=None,
-            name=None,
     ):
         super(ConvBNLayer, self).__init__()
 
@@ -73,16 +72,14 @@ class BottleneckBlock(nn.Layer):
                  stride,
                  shortcut=True,
                  if_first=False,
-                 dilation=1,
-                 name=None):
+                 dilation=1):
         super(BottleneckBlock, self).__init__()
 
         self.conv0 = ConvBNLayer(
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=1,
-            act='relu',
-            name=name + "_branch2a")
+            act='relu')
 
         self.dilation = dilation
 
@@ -92,14 +89,12 @@ class BottleneckBlock(nn.Layer):
             kernel_size=3,
             stride=stride,
             act='relu',
-            dilation=dilation,
-            name=name + "_branch2b")
+            dilation=dilation)
         self.conv2 = ConvBNLayer(
             in_channels=out_channels,
             out_channels=out_channels * 4,
             kernel_size=1,
-            act=None,
-            name=name + "_branch2c")
+            act=None)
 
         if not shortcut:
             self.short = ConvBNLayer(
@@ -107,8 +102,7 @@ class BottleneckBlock(nn.Layer):
                 out_channels=out_channels * 4,
                 kernel_size=1,
                 stride=1,
-                is_vd_mode=False if if_first or stride == 1 else True,
-                name=name + "_branch1")
+                is_vd_mode=False if if_first or stride == 1 else True)
 
         self.shortcut = shortcut
 
@@ -142,8 +136,7 @@ class BasicBlock(nn.Layer):
                  out_channels,
                  stride,
                  shortcut=True,
-                 if_first=False,
-                 name=None):
+                 if_first=False):
         super(BasicBlock, self).__init__()
         self.stride = stride
         self.conv0 = ConvBNLayer(
@@ -151,14 +144,12 @@ class BasicBlock(nn.Layer):
             out_channels=out_channels,
             kernel_size=3,
             stride=stride,
-            act='relu',
-            name=name + "_branch2a")
+            act='relu')
         self.conv1 = ConvBNLayer(
             in_channels=out_channels,
             out_channels=out_channels,
             kernel_size=3,
-            act=None,
-            name=name + "_branch2b")
+            act=None)
 
         if not shortcut:
             self.short = ConvBNLayer(
@@ -166,8 +157,7 @@ class BasicBlock(nn.Layer):
                 out_channels=out_channels,
                 kernel_size=1,
                 stride=1,
-                is_vd_mode=False if if_first else True,
-                name=name + "_branch1")
+                is_vd_mode=False if if_first else True)
 
         self.shortcut = shortcut
 
@@ -179,22 +169,37 @@ class BasicBlock(nn.Layer):
             short = inputs
         else:
             short = self.short(inputs)
-        y = paddle.elementwise_add(x=short, y=conv1, act='relu')
+        y = paddle.add(x=short, y=conv1)
+        y = F.relu(y)
 
         return y
 
 
 class ResNet_vd(nn.Layer):
+    """
+    The ResNet_vd implementation based on PaddlePaddle.
+
+    The original article refers to Jingdong
+    Tong He, et, al. "Bag of Tricks for Image Classification with Convolutional Neural Networks"
+    (https://arxiv.org/pdf/1812.01187.pdf).
+
+    Args:
+        layers (int, optional): The layers of ResNet_vd. The supported layers are (18, 34, 50, 101, 152, 200). Default: 50.
+        output_stride (int, optional): The stride of output features compared to input images. It is 8 or 16. Default: 8.
+        multi_grid (tuple|list, optional): The grid of stage4. Defult: (1, 1, 1).
+        pretrained (str, optional): The path of pretrained model.
+
+    """
+
     def __init__(self,
                  layers=50,
-                 output_stride=None,
+                 output_stride=8,
                  multi_grid=(1, 1, 1),
-                 lr_mult_list=(0.1, 0.1, 0.2, 0.2),
                  pretrained=None):
         super(ResNet_vd, self).__init__()
 
+        self.conv1_logit = None  # for gscnn shape stream
         self.layers = layers
-        self.lr_mult_list = lr_mult_list
         supported_layers = [18, 34, 50, 101, 152, 200]
         assert layers in supported_layers, \
             "supported layers are {} but input layer is {}".format(
@@ -225,26 +230,19 @@ class ResNet_vd(nn.Layer):
             dilation_dict = {3: 2}
 
         self.conv1_1 = ConvBNLayer(
-            in_channels=3,
-            out_channels=32,
-            kernel_size=3,
-            stride=2,
-            act='relu',
-            name="conv1_1")
+            in_channels=3, out_channels=32, kernel_size=3, stride=2, act='relu')
         self.conv1_2 = ConvBNLayer(
             in_channels=32,
             out_channels=32,
             kernel_size=3,
             stride=1,
-            act='relu',
-            name="conv1_2")
+            act='relu')
         self.conv1_3 = ConvBNLayer(
             in_channels=32,
             out_channels=64,
             kernel_size=3,
             stride=1,
-            act='relu',
-            name="conv1_3")
+            act='relu')
         self.pool2d_max = nn.MaxPool2D(kernel_size=3, stride=2, padding=1)
 
         # self.block_list = []
@@ -283,7 +281,6 @@ class ResNet_vd(nn.Layer):
                             and dilation_rate == 1 else 1,
                             shortcut=shortcut,
                             if_first=block == i == 0,
-                            name=conv_name,
                             dilation=dilation_rate))
 
                     block_list.append(bottleneck_block)
@@ -303,8 +300,7 @@ class ResNet_vd(nn.Layer):
                             out_channels=num_filters[block],
                             stride=2 if i == 0 and block != 0 else 1,
                             shortcut=shortcut,
-                            if_first=block == i == 0,
-                            name=conv_name))
+                            if_first=block == i == 0))
                     block_list.append(basic_block)
                     shortcut = True
                 self.stage_list.append(block_list)
@@ -316,6 +312,7 @@ class ResNet_vd(nn.Layer):
         y = self.conv1_1(inputs)
         y = self.conv1_2(y)
         y = self.conv1_3(y)
+        self.conv1_logit = y.clone()
         y = self.pool2d_max(y)
 
         # A feature list saves the output feature map of each stage.
@@ -329,22 +326,6 @@ class ResNet_vd(nn.Layer):
 
     def init_weight(self):
         utils.load_pretrained_model(self, self.pretrained)
-
-        # for idx, stage in enumerate(self.stage_list):
-        #     for layer in stage:
-        #         for sublayer in layer.sublayers():
-        #             if isinstance(sublayer, nn.Conv2D):
-        #                 sublayer.weight.optimize_attr[
-        #                     'learning_rate'] = self.lr_mult_list[idx]
-        #                 if sublayer.bias:
-        #                     sublayer.bias.optimize_attr[
-        #                         'learning_rate'] = self.lr_mult_list[idx]
-
-        #             if isinstance(sublayer, nn.SyncBatchNorm):
-        #                 sublayer.weight.optimize_attr[
-        #                     'learning_rate'] = self.lr_mult_list[idx]
-        #                 sublayer.bias.optimize_attr[
-        #                     'learning_rate'] = self.lr_mult_list[idx]
 
 
 @manager.BACKBONES.add_component

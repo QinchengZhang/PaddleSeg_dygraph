@@ -1,11 +1,3 @@
-# -*- coding: utf-8 -*-
-'''
-Author: TJUZQC
-Date: 2020-11-22 14:57:05
-LastEditors: TJUZQC
-LastEditTime: 2021-01-11 16:49:57
-Description: None
-'''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,8 +24,15 @@ from .fcn import *
 from .gcnet import *
 from .ocrnet import *
 from .pspnet import *
+from .gscnn import GSCNN
 from .unet import UNet
-from .hsunet import HS_UNet
+from .hardnet import HarDNet
+from .u2net import U2Net, U2Netp
+from .attention_unet import AttentionUNet
+from .unet_plusplus import UNetPlusPlus
+from .emanet import *
+from .isanet import *
 from .hsattunet import HS_Att_UNet
+from .hsunet import HS_UNet
 from .cellsetr import CellSETR
 from .transunet import TransUNet
