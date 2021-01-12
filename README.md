@@ -2,12 +2,12 @@
  * @Author: TJUZQC
  * @Date: 2020-11-22 14:57:05
  * @LastEditors: TJUZQC
- * @LastEditTime: 2021-01-12 15:10:56
+ * @LastEditTime: 2021-01-13 00:57:55
  * @Description: None
 -->
 # PaddleSeg（动态图版本）
 
-本目录提供了PaddleSeg的动态图版本修改版，基于PaddleSeg的动态图版本
+本目录提供了PaddleSeg的修改版，基于PaddleSeg的2.0.0-rc版本
 
 ## 模型库
 
@@ -31,7 +31,8 @@
 |[U-Net++](./configs/unet_plusplus)|-|-|-|-|
 |[EMANet](./configs/emanet)|✔|✔|-|-|
 |[ISANet](./configs/isanet)|✔|✔|-|-|
-|[HS-UNet](./configs/unet)|-|-|-|-|
+|[HS-UNet](./configs/hsunet)|-|-|-|-|
+|[CellSETR](./configs/unet)|-|-|-|-|
 
 ## 数据集
 
