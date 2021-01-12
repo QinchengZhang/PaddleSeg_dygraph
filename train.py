@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import argparse
+import os
 
 import paddle
 
-from paddleseg.cvlibs import manager, Config
-from paddleseg.utils import get_sys_env, logger
 from paddleseg.core import train
-import os
+from paddleseg.cvlibs import Config, manager
+from paddleseg.utils import get_sys_env, logger
 
 
 def parse_args():
@@ -63,12 +63,6 @@ def parse_args():
         help='The directory for saving the model snapshot',
         type=str,
         default='./output')
-    parser.add_argument(
-        '--keep_checkpoint_max',
-        dest='keep_checkpoint_max',
-        help='Maximum number of checkpoints to save',
-        type=int,
-        default=5)
     parser.add_argument(
         '--num_workers',
         dest='num_workers',
@@ -126,7 +120,6 @@ def main(args):
     msg += str(cfg)
     msg += '------------------------------------------------'
     logger.info(msg)
-
     try:
         train(
             cfg.model,
@@ -141,8 +134,7 @@ def main(args):
             log_iters=args.log_iters,
             num_workers=args.num_workers,
             use_vdl=args.use_vdl,
-            losses=losses,
-            keep_checkpoint_max=args.keep_checkpoint_max)
+            losses=losses)
     except KeyboardInterrupt:
         current_save_dir = 'interrupted_model'
         if not os.path.isdir(current_save_dir):

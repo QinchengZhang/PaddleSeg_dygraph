@@ -38,9 +38,7 @@ def progress(str, end=False):
 
 
 def _download_file(url, savepath, print_progress):
-    if print_progress:
-        print("Connecting to {}".format(url))
-    r = requests.get(url, stream=True, timeout=15)
+    r = requests.get(url, stream=True)
     total_length = r.headers.get('content-length')
 
     if total_length is None:
@@ -149,8 +147,7 @@ def download_file_and_uncompress(url,
             if not os.path.exists(savepath):
                 _download_file(url, savepath, print_progress)
 
-            if (not tarfile.is_tarfile(savepath)) and (
-                    not zipfile.is_zipfile(savepath)):
+            if not tarfile.is_tarfile(savepath) or zipfile.is_zipfile(savepath):
                 if not os.path.exists(extraname):
                     os.makedirs(extraname)
                 shutil.move(savepath, extraname)

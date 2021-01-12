@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-09 12:36:05
 LastEditors: TJUZQC
-LastEditTime: 2021-01-12 21:53:08
+LastEditTime: 2020-12-09 17:08:24
 Description: None
 '''
 import os
@@ -13,6 +13,8 @@ from paddleseg.utils.download import download_file_and_uncompress
 from paddleseg.utils import seg_env
 from paddleseg.cvlibs import manager
 from paddleseg.transforms import Compose
+
+URL = "https://paddleseg.bj.bcebos.com/dataset/optic_disc_seg.zip"
 
 
 @manager.DATASETS.add_component
@@ -28,7 +30,6 @@ class TN_SCUI2020(Dataset):
     """
 
     def __init__(self, dataset_root, transforms=None, mode='train'):
-        self.edge = False
         self.dataset_root = dataset_root
         self.transforms = Compose(transforms)
         mode = mode.lower()

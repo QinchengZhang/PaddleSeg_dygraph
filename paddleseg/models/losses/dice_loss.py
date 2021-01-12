@@ -1,14 +1,11 @@
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
+# -*- coding: utf-8 -*-
+'''
+Author: TJUZQC
+Date: 2020-12-03 14:31:32
+LastEditors: TJUZQC
+LastEditTime: 2020-12-09 15:30:47
+Description: None
+'''
 import paddle
 from paddle import nn
 import paddle.nn.functional as F
@@ -20,34 +17,37 @@ from paddleseg.cvlibs import manager
 class DiceLoss(nn.Layer):
     """
     Implements the dice loss function.
-
-    Args:
-        ignore_index (int64): Specifies a target value that is ignored
-            and does not contribute to the input gradient. Default ``255``.
     """
 
-    def __init__(self, ignore_index=255):
+    def __init__(self):
         super(DiceLoss, self).__init__()
-        self.ignore_index = ignore_index
-        self.eps = 1e-5
+        self.EPS = 1e-5
 
-    def forward(self, logits, labels):
-        if len(labels.shape) != len(logits.shape):
-            labels = paddle.unsqueeze(labels, 1)
-        num_classes = logits.shape[1]
-        mask = (labels != self.ignore_index)
-        logits = logits * mask
-        labels = paddle.cast(labels, dtype='int32')
-        single_label_lists = []
-        for c in range(num_classes):
-            single_label = paddle.cast((labels == c), dtype='int32')
-            single_label = paddle.squeeze(single_label, axis=1)
-            single_label_lists.append(single_label)
-        labels_one_hot = paddle.stack(tuple(single_label_lists), axis=1)
-        logits = F.softmax(logits, axis=1)
-        labels_one_hot = paddle.cast(labels_one_hot, dtype='float32')
-        dims = (0,) + tuple(range(2, labels.ndimension()))
-        intersection = paddle.sum(logits * labels_one_hot, dims)
-        cardinality = paddle.sum(logits + labels_one_hot, dims)
-        dice_loss = (2. * intersection / (cardinality + self.eps)).mean()
-        return 1 - dice_loss
+    def forward(self, input, label):
+        """
+        Forward computation.
+
+        Args:
+            input (Tensor): Logit tensor, the data type is float32, float64. Shape is
+                (N, 1), where C is number of classes, and if shape is more than 2D, this
+                is (N, 1, D1, D2,..., Dk), k >= 1.
+            label (Tensor): Label tensor, the data type is int64. Shape is (N), where each
+                value is 0 <= label[i] <= C-1, and if shape is more than 2D, this is
+                (N, D1, D2,..., Dk), k >= 1.
+        """
+        assert input.shape[1] == 1, f'The channel of logit except 1 but got {input.shape[1]}'
+        input = paddle.squeeze(input, 1)
+        assert len(label.shape) == len(input.shape), 'The shape of logit and label must be same'
+        if len(label.shape) != len(input.shape):
+            label = paddle.squeeze(label, 1)
+
+        out = self._compute(input, label.astype(input.dtype), self.EPS)
+        label.stop_gradient = True
+        return out
+
+    def _compute(self, input, label, eps=1e-5):
+        inse = paddle.sum(paddle.multiply(input, label))
+        dice_denominator = paddle.sum(input) + paddle.sum(label)
+        dice_score = 1 - inse * 2 / (dice_denominator + eps)
+        return paddle.mean(dice_score)
+        

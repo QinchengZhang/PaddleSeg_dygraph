@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 '''
 Author: TJUZQC
-Date: 2021-01-12 15:07:21
+Date: 2020-11-22 14:57:05
 LastEditors: TJUZQC
-LastEditTime: 2021-01-12 15:28:39
+LastEditTime: 2020-12-11 11:52:01
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -20,9 +20,6 @@ Description: None
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .layer_libs import *
+from .layer_libs import ConvBNReLU, ConvBN, SeparableConvBNReLU, DepthwiseConvBN, AuxLayer, SyncBatchNorm, HSBottleNeck, HSBlockBNReLU, HSBlock, AttentionBlock
 from .activation import Activation
 from .pyramid_pool import ASPPModule, PPModule
-from .attention import AttentionBlock
-from .hierarchicalsplit import *
-from .transformer import *

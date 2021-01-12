@@ -13,5 +13,3 @@
 # limitations under the License.
 
 from . import models, datasets, transforms
-
-__version__ = '2.0.0-rc'

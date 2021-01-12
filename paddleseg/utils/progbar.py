@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import sys
 import time
 
@@ -23,7 +22,7 @@ class Progbar(object):
     """
     Displays a progress bar.
         It refers to https://github.com/keras-team/keras/blob/keras-2/keras/utils/generic_utils.py
-
+    
     Args:
         target (int): Total number of steps expected, None if unknown.
         width (int): Progress bar width on screen.
@@ -52,8 +51,8 @@ class Progbar(object):
         else:
             self.stateful_metrics = set()
 
-        self._dynamic_display = ((hasattr(sys.stderr, 'isatty')
-                                  and sys.stderr.isatty())
+        self._dynamic_display = ((hasattr(sys.stdout, 'isatty')
+                                  and sys.stdout.isatty())
                                  or 'ipykernel' in sys.modules
                                  or 'posix' in sys.modules
                                  or 'PYCHARM_HOSTED' in os.environ)
@@ -115,10 +114,10 @@ class Progbar(object):
 
             prev_total_width = self._total_width
             if self._dynamic_display:
-                sys.stderr.write('\b' * prev_total_width)
-                sys.stderr.write('\r')
+                sys.stdout.write('\b' * prev_total_width)
+                sys.stdout.write('\r')
             else:
-                sys.stderr.write('\n')
+                sys.stdout.write('\n')
 
             if self.target is not None:
                 numdigits = int(np.log10(self.target)) + 1
@@ -137,7 +136,7 @@ class Progbar(object):
                 bar = '%7d/Unknown' % current
 
             self._total_width = len(bar)
-            sys.stderr.write(bar)
+            sys.stdout.write(bar)
 
             if current:
                 time_per_unit = (now - self._start) / current
@@ -182,8 +181,8 @@ class Progbar(object):
             if finalize:
                 info += '\n'
 
-            sys.stderr.write(info)
-            sys.stderr.flush()
+            sys.stdout.write(info)
+            sys.stdout.flush()
 
         elif self.verbose == 2:
             if finalize:
@@ -200,8 +199,8 @@ class Progbar(object):
                         info += ' %.4e' % avg
                 info += '\n'
 
-                sys.stderr.write(info)
-                sys.stderr.flush()
+                sys.stdout.write(info)
+                sys.stdout.flush()
 
         self._last_update = now
 

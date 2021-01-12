@@ -14,8 +14,6 @@
 
 import os
 import time
-from collections import deque
-import shutil
 
 import paddle
 import paddle.nn.functional as F
@@ -24,26 +22,29 @@ from paddleseg.utils import Timer, calculate_eta, resume, logger
 from paddleseg.core.val import evaluate
 
 
-def check_logits_losses(logits_list, losses):
-    len_logits = len(logits_list)
+def check_logits_losses(logits, losses):
+    len_logits = len(logits)
     len_losses = len(losses['types'])
     if len_logits != len_losses:
         raise RuntimeError(
-            'The length of logits_list should equal to the types of loss config: {} != {}.'
+            'The length of logits should equal to the types of loss config: {} != {}.'
             .format(len_logits, len_losses))
 
 
-def loss_computation(logits_list, labels, losses, edges=None):
-    check_logits_losses(logits_list, losses)
+def loss_computation(logits, label, losses):
+    check_logits_losses(logits, losses)
     loss = 0
-    for i in range(len(logits_list)):
-        logits = logits_list[i]
-        loss_i = losses['types'][i]
-        # Whether to use edges as labels According to loss type .
-        if loss_i.__class__.__name__ in ('BCELoss', ) and loss_i.edge_label:
-            loss += losses['coef'][i] * loss_i(logits, edges)
-        else:
-            loss += losses['coef'][i] * loss_i(logits, labels)
+    for i in range(len(logits)):
+        logit = logits[i]
+        if logit.shape[-2:] != label.shape[-2:]:
+            logit = F.interpolate(
+                logit,
+                label.shape[-2:],
+                mode='bilinear',
+                align_corners=True,
+                align_mode=1)
+        loss_i = losses['types'][i](logit, label)
+        loss += losses['coef'][i] * loss_i
     return loss
 
 
@@ -59,28 +60,7 @@ def train(model,
           log_iters=10,
           num_workers=0,
           use_vdl=False,
-          losses=None,
-          keep_checkpoint_max=5):
-    """
-    Launch training.
-
-    Args:
-        model（nn.Layer): A sementic segmentation model.
-        train_dataset (paddle.io.Dataset): Used to read and process training datasets.
-        val_dataset (paddle.io.Dataset, optional): Used to read and process validation datasets.
-        optimizer (paddle.optimizer.Optimizer): The optimizer.
-        save_dir (str, optional): The directory for saving the model snapshot. Default: 'output'.
-        iters (int, optional): How may iters to train the model. Defualt: 10000.
-        batch_size (int, optional): Mini batch size of one gpu or cpu. Default: 2.
-        resume_model (str, optional): The path of resume model.
-        save_interval (int, optional): How many iters to save a model snapshot once during training. Default: 1000.
-        log_iters (int, optional): Display logging information at every log_iters. Default: 10.
-        num_workers (int, optional): Num workers for data loader. Default: 0.
-        use_vdl (bool, optional): Whether to record the data to VisualDL during training. Default: False.
-        losses (dict): A dict including 'types' and 'coef'. The length of coef should equal to 1 or len(losses['types']).
-            The 'types' item is a list of object of paddleseg.models.losses while the 'coef' item is a list of the relevant coefficient.
-        keep_checkpoint_max (int, optional): Maximum number of checkpoints to save. Default: 5.
-    """
+          losses=None):
     nranks = paddle.distributed.ParallelEnv().nranks
     local_rank = paddle.distributed.ParallelEnv().local_rank
 
@@ -120,7 +100,6 @@ def train(model,
     best_model_iter = -1
     train_reader_cost = 0.0
     train_batch_cost = 0.0
-    save_models = deque()
     timer.start()
 
     iter = start_iter
@@ -132,30 +111,27 @@ def train(model,
             train_reader_cost += timer.elapsed_time()
             images = data[0]
             labels = data[1].astype('int64')
-            edges = None
-            if len(data) == 3:
-                edges = data[2].astype('int64')
-
             if nranks > 1:
-                logits_list = ddp_model(images)
+                logits = ddp_model(images)
+                loss = loss_computation(logits, labels, losses)
+                # loss = ddp_model.scale_loss(loss)
+                loss.backward()
+                # ddp_model.apply_collective_grads()
             else:
-                logits_list = model(images)
-            loss = loss_computation(
-                logits_list=logits_list,
-                labels=labels,
-                losses=losses,
-                edges=edges)
-            loss.backward()
-
+                logits = model(images)
+                loss = loss_computation(logits, labels, losses)
+                loss.backward()
             optimizer.step()
             lr = optimizer.get_lr()
             if isinstance(optimizer._learning_rate,
                           paddle.optimizer.lr.LRScheduler):
                 optimizer._learning_rate.step()
             model.clear_gradients()
+            # Sum loss over all ranks
+            # if nranks > 1:
+            #     paddle.distributed.all_reduce(loss)
             avg_loss += loss.numpy()[0]
             train_batch_cost += timer.elapsed_time()
-
             if (iter) % log_iters == 0 and local_rank == 0:
                 avg_loss /= log_iters
                 avg_train_reader_cost = train_reader_cost / log_iters
@@ -178,13 +154,6 @@ def train(model,
                                           avg_train_reader_cost, iter)
                 avg_loss = 0.0
 
-            if (iter % save_interval == 0
-                    or iter == iters) and (val_dataset is not None):
-                num_workers = 1 if num_workers > 0 else 0
-                mean_iou, acc = evaluate(
-                    model, val_dataset, num_workers=num_workers)
-                model.train()
-
             if (iter % save_interval == 0 or iter == iters) and local_rank == 0:
                 current_save_dir = os.path.join(save_dir,
                                                 "iter_{}".format(iter))
@@ -194,12 +163,9 @@ def train(model,
                             os.path.join(current_save_dir, 'model.pdparams'))
                 paddle.save(optimizer.state_dict(),
                             os.path.join(current_save_dir, 'model.pdopt'))
-                save_models.append(current_save_dir)
-                if len(save_models) > keep_checkpoint_max > 0:
-                    model_to_remove = save_models.popleft()
-                    shutil.rmtree(model_to_remove)
 
                 if val_dataset is not None:
+                    mean_iou, acc = evaluate(model, val_dataset, iter_id=iter)
                     if mean_iou > best_mean_iou:
                         best_mean_iou = mean_iou
                         best_model_iter = iter
@@ -214,6 +180,7 @@ def train(model,
                     if use_vdl:
                         log_writer.add_scalar('Evaluate/mIoU', mean_iou, iter)
                         log_writer.add_scalar('Evaluate/Acc', acc, iter)
+                    model.train()
             timer.restart()
 
     # Sleep for half a second to let dataloader release resources.

@@ -2,7 +2,7 @@
  * @Author: TJUZQC
  * @Date: 2020-11-22 14:57:05
  * @LastEditors: TJUZQC
- * @LastEditTime: 2021-01-12 15:10:56
+ * @LastEditTime: 2020-11-26 13:00:18
  * @Description: None
 -->
 # PaddleSeg（动态图版本）
@@ -21,16 +21,9 @@
 |[Fast-SCNN](./configs/fastscnn)|-|-|-|-|
 |[FCN](./configs/fcn)|||✔|✔|
 |[GCNet](./configs/gcnet)|✔|✔|||
-|[GSCNN](./configs/gscnn)|✔|✔|||
-|[HarDNet](./configs/hardnet)|-|-|-|-|
 |[OCRNet](./configs/ocrnet/)|||✔|✔|
 |[PSPNet](./configs/pspnet)|✔|✔|||
-|[U-Net](./configs/unet)|-|-|-|-|
-|[U<sup>2</sup>-Net](./configs/u2net)|-|-|-|-|
-|[Att U-Net](./configs/attention_unet)|-|-|-|-|
-|[U-Net++](./configs/unet_plusplus)|-|-|-|-|
-|[EMANet](./configs/emanet)|✔|✔|-|-|
-|[ISANet](./configs/isanet)|✔|✔|-|-|
+|[UNet](./configs/unet)|-|-|-|-|
 |[HS-UNet](./configs/unet)|-|-|-|-|
 
 ## 数据集
@@ -82,8 +75,5 @@ python train.py --config configs/quick_start/bisenet_optic_disc_512x512_1k.yml
 ## 使用教程
 
 * [快速入门](./docs/quick_start.md)
-* [API使用教程](https://aistudio.baidu.com/aistudio/projectdetail/1339458)
 * [数据集准备](./docs/data_prepare.md)
 * [配置项](./configs/)
-* [API参考](./docs/apis)
-* [添加新组件](./docs/add_new_model.md)

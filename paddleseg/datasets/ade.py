@@ -22,7 +22,6 @@ from paddleseg.utils.download import download_file_and_uncompress
 from paddleseg.utils import seg_env
 from paddleseg.cvlibs import manager
 from paddleseg.transforms import Compose
-import paddleseg.transforms.functional as F
 
 URL = "http://data.csail.mit.edu/places/ADEchallenge/ADEChallengeData2016.zip"
 
@@ -36,10 +35,9 @@ class ADE20K(Dataset):
         transforms (list): A list of image transformations.
         dataset_root (str, optional): The ADK20K dataset directory. Default: None.
         mode (str, optional): A subset of the entire dataset. It should be one of ('train', 'val'). Default: 'train'.
-        edge (bool, optional): Whether to compute edge while training. Default: False
     """
 
-    def __init__(self, transforms, dataset_root=None, mode='train', edge=False):
+    def __init__(self, transforms, dataset_root=None, mode='train'):
         self.dataset_root = dataset_root
         self.transforms = Compose(transforms)
         mode = mode.lower()
@@ -47,7 +45,6 @@ class ADE20K(Dataset):
         self.file_list = list()
         self.num_classes = 150
         self.ignore_index = 255
-        self.edge = edge
 
         if mode not in ['train', 'val']:
             raise ValueError(
@@ -90,19 +87,16 @@ class ADE20K(Dataset):
     def __getitem__(self, idx):
         image_path, label_path = self.file_list[idx]
         if self.mode == 'val':
-            im, _ = self.transforms(im=image_path)
+            im, im_info, _ = self.transforms(im=image_path)
+            im = im[np.newaxis, ...]
             label = np.asarray(Image.open(label_path))
             # The class 0 is ignored. And it will equal to 255 after
             # subtracted 1, because the dtype of label is uint8.
             label = label - 1
-            label = label[np.newaxis, :, :]
-            return im, label
+            label = label[np.newaxis, np.newaxis, :, :]
+            return im, im_info, label
         else:
-            im, label = self.transforms(im=image_path, label=label_path)
+            im, im_info, label = self.transforms(
+                im=image_path, label=label_path)
             label = label - 1
-            if self.edge:
-                edge_mask = F.mask_to_binary_edge(
-                    label, radius=2, num_classes=self.num_classes)
-                return im, label, edge_mask
-            else:
-                return im, label
+            return im, label

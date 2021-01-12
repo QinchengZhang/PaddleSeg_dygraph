@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-24 15:59:19
 LastEditors: TJUZQC
-LastEditTime: 2021-01-12 14:37:18
+LastEditTime: 2020-12-11 11:30:55
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -85,12 +85,14 @@ class Encoder(nn.Layer):
     def __init__(self, split:int=5):
         super().__init__()
 
+        # self.double_conv = nn.Sequential(
+        #     layers.ConvBNReLU(3, 64, 3), layers.ConvBNReLU(64, 64, 3))
         self.double_conv = nn.Sequential(
             layers.HSBottleNeck(3, 64, split), layers.HSBottleNeck(64, 64, split))    
-        self.down_channels = [[64, 128], [128, 256], [256, 512], [512, 512]]
+        down_channels = [[64, 128], [128, 256], [256, 512], [512, 512]]
         self.down_sample_list = nn.LayerList([
             self.down_sampling(channel[0], channel[1], split)
-            for channel in self.down_channels
+            for channel in down_channels
         ])
 
     def down_sampling(self, in_channels, out_channels, split=5):
@@ -98,6 +100,8 @@ class Encoder(nn.Layer):
         modules.append(nn.MaxPool2D(kernel_size=2, stride=2))
         modules.append(layers.HSBottleNeck(in_channels, out_channels, split))
         modules.append(layers.HSBottleNeck(out_channels, out_channels, split))
+        # modules.append(layers.ConvBNReLU(in_channels, out_channels, 3))
+        # modules.append(layers.ConvBNReLU(out_channels, out_channels, 3))
         return nn.Sequential(*modules)
 
     def forward(self, x):
@@ -113,10 +117,10 @@ class Decoder(nn.Layer):
     def __init__(self, align_corners, use_deconv=False, split=5):
         super().__init__()
 
-        self.up_channels = [[512, 256], [256, 128], [128, 64], [64, 64]]
+        up_channels = [[512, 256], [256, 128], [128, 64], [64, 64]]
         self.up_sample_list = nn.LayerList([
             UpSampling(channel[0], channel[1], align_corners, use_deconv, split)
-            for channel in self.up_channels
+            for channel in up_channels
         ])
 
     def forward(self, x, short_cuts):
@@ -149,6 +153,8 @@ class UpSampling(nn.Layer):
             in_channels *= 2
 
         self.double_conv = nn.Sequential(
+            # layers.ConvBNReLU(in_channels, out_channels, 3),
+            # layers.ConvBNReLU(out_channels, out_channels, 3))
             layers.HSBottleNeck(in_channels, out_channels, split),
             layers.HSBottleNeck(out_channels, out_channels, split))
 

@@ -265,10 +265,9 @@ class FeatureFusionModule(nn.Layer):
         self.align_corners = align_corners
 
     def forward(self, high_res_input, low_res_input):
-        h, w = high_res_input.shape[2:]
         low_res_input = F.interpolate(
             low_res_input,
-            [h, w],
+            scale_factor=4,
             mode='bilinear',
             align_corners=self.align_corners)
         low_res_input = self.dwconv(low_res_input)

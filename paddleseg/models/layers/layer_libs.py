@@ -18,9 +18,9 @@ import paddle.nn.functional as F
 
 
 def SyncBatchNorm(*args, **kwargs):
-    """In cpu environment nn.SyncBatchNorm does not have kernel so use nn.BatchNorm2D instead"""
+    """In cpu environment nn.SyncBatchNorm does not have kernel so use nn.BatchNorm instead"""
     if paddle.get_device() == 'cpu':
-        return nn.BatchNorm2D(*args, **kwargs)
+        return nn.BatchNorm(*args, **kwargs)
     else:
         return nn.SyncBatchNorm(*args, **kwargs)
 
@@ -163,3 +163,97 @@ class AuxLayer(nn.Layer):
         x = self.dropout(x)
         x = self.conv(x)
         return x
+
+class HSBlock(nn.Layer):
+    def __init__(self, w: int, split: int, stride: int = 1) -> None:
+        super(HSBlock, self).__init__()
+        self.w = w
+        self.channels = w*split
+        self.split = split
+        self.stride = stride
+        self.ops_list = nn.LayerList()
+        for s in range(1, self.split):
+            hc = int((2**(s)-1)/2**(s-1)*self.w)
+            self.ops_list.append(nn.Sequential(
+                nn.Conv2D(hc, hc, kernel_size=3, padding=1, stride=self.stride),
+                # nn.BatchNorm2D(hc),
+                # nn.ReLU(),
+                ))
+
+    def forward(self, x):
+        last_split = None
+        channels = x.shape[1]
+        assert channels == self.w * \
+            self.split, f'input channels({channels}) is not equal to w({self.w})*split({self.split})'
+        retfeature = x[:, 0:self.w, :, :]
+        for s in range(1, self.split):
+            temp = x[:, s*self.w:(s+1)*self.w, :, :] if last_split is None else paddle.concat([last_split, x[:, s*self.w:(s+1)*self.w, :, :]], axis=1)
+            temp = self.ops_list[s-1](temp)
+            x1, x2 = self._split(temp)
+            retfeature = paddle.concat([retfeature, x1], axis=1)
+            last_split = x2
+        retfeature = paddle.concat([retfeature, last_split], axis=1)
+        del last_split
+        return retfeature
+
+    def _split(self, x):
+        channels = int(x.shape[1]/2)
+        return x[:, 0:channels, :, :], x[:, channels:, :, :]
+
+class HSBlockBNReLU(nn.Layer):
+    def __init__(self, w: int, split: int, stride: int = 1) -> None:
+        super(HSBlockBNReLU, self).__init__()
+        self._hsblock = HSBlock(w, split, stride)
+        self._batch_norm = SyncBatchNorm(split*w)
+
+    def forward(self, x):
+        x = self._hsblock(x)
+        x = self._batch_norm(x)
+        x = F.relu(x)
+        return x
+
+
+class HSBottleNeck(nn.Layer):
+    def __init__(self, in_channels: int, out_channels: int, split: int=5, stride: int = 1) -> None:
+        super(HSBottleNeck, self).__init__()
+        self.w = max(2**(split-2), 1)
+        self.residual_function = nn.Sequential(
+            ConvBNReLU(in_channels, self.w*split, kernel_size=1, stride=stride),
+            HSBlockBNReLU(self.w, split, stride),
+            ConvBN(self.w*split, out_channels,
+                             kernel_size=1, stride=stride),
+        )
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = ConvBN(in_channels, out_channels, stride=stride, kernel_size=1)
+
+    def forward(self, x):
+        residual = self.residual_function(x)
+        shortcut = self.shortcut(x)
+        return F.relu(residual + shortcut)
+
+class AttentionBlock(nn.Layer):
+    def __init__(self, F_g, F_l, F_int):
+        super(AttentionBlock, self).__init__()
+        self.W_g = nn.Sequential(
+            ConvBN(F_g, F_int, kernel_size=1, padding=0)
+        )
+
+        self.W_x = nn.Sequential(
+            ConvBN(F_l, F_int, kernel_size=1, padding=0)
+        )
+
+        self.psi = nn.Sequential(
+            ConvBN(F_int, 1, kernel_size=1, padding=0),
+            nn.Sigmoid()
+        )
+
+        self.relu = nn.ReLU()
+
+    def forward(self, g, x):
+        g1 = self.W_g(g)
+        x1 = self.W_x(x)
+        psi = self.relu(g1+x1)
+        psi = self.psi(psi)
+
+        return x*psi

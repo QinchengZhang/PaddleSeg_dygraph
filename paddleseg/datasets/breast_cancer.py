@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-25 13:42:40
 LastEditors: TJUZQC
-LastEditTime: 2021-01-08 23:24:35
+LastEditTime: 2020-11-25 13:46:04
 Description: None
 '''
 import os
@@ -52,8 +52,8 @@ class BreastCancer(Dataset):
         if self.transforms is None:
             raise ValueError("`transforms` is necessary, but it is None.")
 
-        img_dir = os.path.join(self.dataset_root, 'Images')
-        label_dir = os.path.join(self.dataset_root, 'Masks')
+        img_dir = os.path.join(self.dataset_root, 'img_train')
+        label_dir = os.path.join(self.dataset_root, 'lab_train')
         list_file = open(os.path.join(dataset_root, f'{mode}_list.txt'))
         if self.dataset_root is None or not os.path.isdir(
                 self.dataset_root) or not os.path.isdir(

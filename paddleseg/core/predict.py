@@ -13,15 +13,15 @@
 # limitations under the License.
 
 import os
-import math
 
 import cv2
 import numpy as np
 import paddle
+import tqdm
 
 from paddleseg import utils
-from paddleseg.core import infer
-from paddleseg.utils import logger, progbar
+from PIL import Image
+import paddleseg.utils.logger as logger
 
 
 def mkdir(path):
@@ -29,26 +29,33 @@ def mkdir(path):
     if not os.path.exists(sub_dir):
         os.makedirs(sub_dir)
 
+def get_color_map_list(num_classes):
+    """ Returns the color map for visualizing the segmentation mask,
+        which can support arbitrary number of classes.
+    Args:
+        num_classes: Number of classes
+    Returns:
+        The color map
+    """
+    color_map = num_classes * [0, 0, 0]
+    for i in range(0, num_classes):
+        j = 0
+        lab = i
+        while lab:
+            color_map[i * 3] |= (((lab >> 0) & 1) << (7 - j))
+            color_map[i * 3 + 1] |= (((lab >> 1) & 1) << (7 - j))
+            color_map[i * 3 + 2] |= (((lab >> 2) & 1) << (7 - j))
+            j += 1
+            lab >>= 3
 
-def partition_list(arr, m):
-    """split the list 'arr' into m pieces"""
-    n = int(math.ceil(len(arr) / float(m)))
-    return [arr[i:i + n] for i in range(0, len(arr), n)]
-
+    return color_map
 
 def predict(model,
             model_path,
             transforms,
             image_list,
             image_dir=None,
-            save_dir='output',
-            aug_pred=False,
-            scales=1.0,
-            flip_horizontal=True,
-            flip_vertical=False,
-            is_slide=False,
-            stride=None,
-            crop_size=None):
+            save_dir='output'):
     """
     predict and visualize the image_list.
 
@@ -56,91 +63,64 @@ def predict(model,
         model (nn.Layer): Used to predict for input image.
         model_path (str): The path of pretrained model.
         transforms (transform.Compose): Preprocess for input image.
-        image_list (list): A list of image path to be predicted.
-        image_dir (str, optional): The root directory of the images predicted. Default: None.
-        save_dir (str, optional): The directory to save the visualized results. Default: 'output'.
-        aug_pred (bool, optional): Whether to use mulit-scales and flip augment for predition. Default: False.
-        scales (list|float, optional): Scales for augment. It is valid when `aug_pred` is True. Default: 1.0.
-        flip_horizontal (bool, optional): Whether to use flip horizontally augment. It is valid when `aug_pred` is True. Default: True.
-        flip_vertical (bool, optional): Whether to use flip vertically augment. It is valid when `aug_pred` is True. Default: False.
-        is_slide (bool, optional): Whether to predict by sliding window. Default: False.
-        stride (tuple|list, optional): The stride of sliding window, the first is width and the second is height.
-            It should be provided when `is_slide` is True.
-        crop_size (tuple|list, optional):  The crop size of sliding window, the first is width and the second is height.
-            It should be provided when `is_slide` is True.
+        image_list (list): A list of images to be predicted.
+        image_dir (str): The directory of the images to be predicted. Default: None.
+        save_dir (str): The directory to save the visualized results. Default: 'output'.
 
     """
     para_state_dict = paddle.load(model_path)
     model.set_dict(para_state_dict)
     model.eval()
-    nranks = paddle.distributed.get_world_size()
-    local_rank = paddle.distributed.get_rank()
-    if nranks > 1:
-        img_lists = partition_list(image_list, nranks)
-    else:
-        img_lists = [image_list]
 
     added_saved_dir = os.path.join(save_dir, 'added_prediction')
     pred_saved_dir = os.path.join(save_dir, 'pseudo_color_prediction')
+    pred_one_channel_saved_dir = os.path.join(save_dir, 'one_channel_pseudo_color_prediction')
 
     logger.info("Start to predict...")
-    progbar_pred = progbar.Progbar(target=len(img_lists[0]), verbose=1)
-    with paddle.no_grad():
-        for i, im_path in enumerate(img_lists[local_rank]):
-            im = cv2.imread(im_path)
-            ori_shape = im.shape[:2]
-            im, _ = transforms(im)
-            im = im[np.newaxis, ...]
-            im = paddle.to_tensor(im)
-
-            if aug_pred:
-                pred = infer.aug_inference(
-                    model,
-                    im,
-                    ori_shape=ori_shape,
-                    transforms=transforms.transforms,
-                    scales=scales,
-                    flip_horizontal=flip_horizontal,
-                    flip_vertical=flip_vertical,
-                    is_slide=is_slide,
-                    stride=stride,
-                    crop_size=crop_size)
+    for im_path in tqdm.tqdm(image_list):
+        im, im_info, _ = transforms(im_path)
+        im = im[np.newaxis, ...]
+        im = paddle.to_tensor(im)
+        logits = model(im)
+        pred = paddle.argmax(logits[0], axis=1)
+        pred = pred.numpy()
+        pred = np.squeeze(pred).astype('uint8')
+        for info in im_info[::-1]:
+            if info[0] == 'resize':
+                h, w = info[1][0], info[1][1]
+                pred = cv2.resize(pred, (w, h), cv2.INTER_NEAREST)
+            elif info[0] == 'padding':
+                h, w = info[1][0], info[1][1]
+                pred = pred[0:h, 0:w]
             else:
-                pred = infer.inference(
-                    model,
-                    im,
-                    ori_shape=ori_shape,
-                    transforms=transforms.transforms,
-                    is_slide=is_slide,
-                    stride=stride,
-                    crop_size=crop_size)
-            pred = paddle.squeeze(pred)
-            pred = pred.numpy().astype('uint8')
+                raise ValueError("Unexpected info '{}' in im_info".format(
+                    info[0]))
 
-            # get the saved name
-            if image_dir is not None:
-                im_file = im_path.replace(image_dir, '')
-            else:
-                im_file = os.path.basename(im_path)
-            if im_file[0] == '/':
-                im_file = im_file[1:]
+        # get the saved name
+        if image_dir is not None:
+            im_file = im_path.replace(image_dir, '')
+        else:
+            im_file = os.path.basename(im_path)
+        if im_file[0] == '/':
+            im_file = im_file[1:]
 
-            # save added image
-            added_image = utils.visualize.visualize(im_path, pred, weight=0.6)
-            added_image_path = os.path.join(added_saved_dir, im_file)
-            mkdir(added_image_path)
-            cv2.imwrite(added_image_path, added_image)
+        # save added image
+        added_image = utils.visualize(im_path, pred, weight=0.6)
+        added_image_path = os.path.join(added_saved_dir, im_file)
+        mkdir(added_image_path)
+        cv2.imwrite(added_image_path, added_image)
 
-            # save pseudo color prediction
-            pred_mask = utils.visualize.get_pseudo_color_map(pred)
-            pred_saved_path = os.path.join(pred_saved_dir,
-                                           im_file.rsplit(".")[0] + ".png")
-            mkdir(pred_saved_path)
-            pred_mask.save(pred_saved_path)
+        # save pseudo color prediction
+        pred_im = utils.visualize(im_path, pred, weight=0.0)
+        pred_saved_path = os.path.join(pred_saved_dir, im_file)
+        mkdir(pred_saved_path)
+        cv2.imwrite(pred_saved_path, pred_im)
 
-            # pred_im = utils.visualize(im_path, pred, weight=0.0)
-            # pred_saved_path = os.path.join(pred_saved_dir, im_file)
-            # mkdir(pred_saved_path)
-            # cv2.imwrite(pred_saved_path, pred_im)
-
-            progbar_pred.update(i + 1)
+        # save one channel pseudo color prediction
+        pred_im_one_channel = Image.fromarray(pred)
+        pred_im_one_channel = pred_im_one_channel.convert('P')
+        colormap = get_color_map_list(256)
+        pred_im_one_channel.putpalette(colormap)
+        pred_one_channel_saved_path = os.path.join(pred_one_channel_saved_dir, im_file)
+        mkdir(pred_one_channel_saved_path.replace('jpg', 'png'))
+        pred_im_one_channel.save(pred_one_channel_saved_path.replace('jpg', 'png'))
