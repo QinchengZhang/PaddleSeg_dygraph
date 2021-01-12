@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-09 12:36:05
 LastEditors: TJUZQC
-LastEditTime: 2020-12-17 14:27:03
+LastEditTime: 2021-01-12 21:53:08
 Description: None
 '''
 import os
@@ -28,6 +28,7 @@ class TN_SCUI2020(Dataset):
     """
 
     def __init__(self, dataset_root, transforms=None, mode='train'):
+        self.edge = False
         self.dataset_root = dataset_root
         self.transforms = Compose(transforms)
         mode = mode.lower()

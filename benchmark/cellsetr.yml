@@ -1,20 +1,18 @@
-batch_size: 2
+batch_size: 6
 iters: 100000
 
 train_dataset:
-  type: BreastCancer
-  dataset_root: F:/DATASET/breast4732
+  type: BJSCLC
+  dataset_root: F:/DATASET/Beijing-small_cell_lung_cancer-pathology/patch_1024
   transforms:
     - type: Resize
       target_size: [256, 256]
-    - type: RandomHorizontalFlip
-    - type: RandomDistort
     - type: Normalize
   mode: train
 
 val_dataset:
-  type: BreastCancer
-  dataset_root: F:/DATASET/breast4732
+  type: BJSCLC
+  dataset_root: F:/DATASET/Beijing-small_cell_lung_cancer-pathology/patch_1024
   transforms:
     - type: Resize
       target_size: [256, 256]
@@ -24,7 +22,6 @@ val_dataset:
 model:
   type: CellSETR
   num_classes: 2
-  segmentation_head_final_activation: Softmax
 
 optimizer:
   type: sgd
@@ -40,5 +37,5 @@ learning_rate:
 
 loss:
   types:
-    - type: CrossEntropyLoss
+    - type: DiceLoss
   coef: [1]

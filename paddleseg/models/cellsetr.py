@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 13:50:36
 LastEditors: TJUZQC
-LastEditTime: 2021-01-12 14:08:28
+LastEditTime: 2021-01-12 20:39:57
 Description: None
 '''
 from typing import Iterable, Tuple, Type
@@ -138,7 +138,8 @@ class CellSETR(nn.Layer):
         decoded_features = self.decoder(features_encoded, feature_list)
         instance_segmentation_prediction = self.cls(decoded_features)
         
-        logit = self.segmentation_final_activation(instance_segmentation_prediction)
+        logit = instance_segmentation_prediction
+        # logit = self.segmentation_final_activation(instance_segmentation_prediction)
         logit_list.append(logit)
         return logit_list
 

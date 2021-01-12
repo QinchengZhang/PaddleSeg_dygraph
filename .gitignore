@@ -118,3 +118,4 @@ __pycache__/
 */__pycache__
 /*.yml
 predict*/
+interrupted_model/

@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-01-12 13:38:07
 LastEditors: TJUZQC
-LastEditTime: 2021-01-12 13:55:42
+LastEditTime: 2021-01-12 20:34:19
 Description: None
 '''
 import os
@@ -27,6 +27,7 @@ class BJSCLC(Dataset):
     """
 
     def __init__(self, dataset_root, transforms=None, mode='train'):
+        self.edge = False
         self.dataset_root = dataset_root
         self.transforms = Compose(transforms)
         mode = mode.lower()
