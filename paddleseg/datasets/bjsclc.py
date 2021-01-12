@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-01-12 13:38:07
 LastEditors: TJUZQC
-LastEditTime: 2021-01-12 13:39:23
+LastEditTime: 2021-01-12 13:45:03
 Description: None
 '''
 import os
@@ -32,7 +32,7 @@ class BJSCLC(Dataset):
         mode = mode.lower()
         self.mode = mode
         self.file_list = list()
-        self.num_classes = 3
+        self.num_classes = 2
         self.ignore_index = 255
 
         if mode not in ['train', 'val']:
