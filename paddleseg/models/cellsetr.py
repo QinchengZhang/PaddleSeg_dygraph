@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 13:50:36
 LastEditors: TJUZQC
-LastEditTime: 2021-01-11 14:39:55
+LastEditTime: 2021-01-12 14:08:28
 Description: None
 '''
 from typing import Iterable, Tuple, Type
@@ -123,6 +123,7 @@ class CellSETR(nn.Layer):
         :return: (Tuple[paddle.Tensor, paddle.Tensor, paddle.Tensor]) Class prediction, bounding box predictions and
         segmentation maps
         """
+        logit_list = []
         # Get features from backbone
         features, feature_list = self.encoder(input)
         # Map features to the desired shape
@@ -136,8 +137,10 @@ class CellSETR(nn.Layer):
         # Get instance segmentation prediction
         decoded_features = self.decoder(features_encoded, feature_list)
         instance_segmentation_prediction = self.cls(decoded_features)
-
-        return self.segmentation_final_activation(instance_segmentation_prediction)
+        
+        logit = self.segmentation_final_activation(instance_segmentation_prediction)
+        logit_list.append(logit)
+        return logit_list
 
 def _get_activation(activation:str):
     activation = activation.lower()
