@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-24 15:59:19
 LastEditors: TJUZQC
-LastEditTime: 2021-01-11 14:55:15
+LastEditTime: 2021-01-12 14:37:18
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -61,7 +61,7 @@ class HS_UNet(nn.Layer):
         self.cls = self.conv = nn.Conv2D(
             in_channels=64,
             out_channels=num_classes,
-            kernel_size=1,
+            kernel_size=3,
             stride=1,
             padding=1)
 
