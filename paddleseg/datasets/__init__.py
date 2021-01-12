@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-11-22 14:57:05
 LastEditors: TJUZQC
-LastEditTime: 2020-11-25 14:09:09
+LastEditTime: 2021-01-12 13:39:46
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -29,3 +29,4 @@ from .remotesensing import RemoteSensing
 from .voc import PascalVOC
 from .tn_scui2020 import TN_SCUI2020
 from .segpc2021 import SegPC2021
+from .bjsclc import BJSCLC
