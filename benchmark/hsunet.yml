@@ -39,6 +39,5 @@ learning_rate:
 
 loss:
   types:
-    - type: CrossEntropyLoss
-      ignore_index: 255
+    - type: DiceLoss
   coef: [1]

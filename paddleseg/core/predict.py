@@ -22,13 +22,33 @@ import paddle
 from paddleseg import utils
 from paddleseg.core import infer
 from paddleseg.utils import logger, progbar
+from PIL import Image
 
 
 def mkdir(path):
-    sub_dir = os.path.dirname(path)
-    if not os.path.exists(sub_dir):
-        os.makedirs(sub_dir)
+    if not os.path.exists(path):
+        os.makedirs(path)
 
+def get_color_map_list(num_classes):
+    """ Returns the color map for visualizing the segmentation mask,
+        which can support arbitrary number of classes.
+    Args:
+        num_classes: Number of classes
+    Returns:
+        The color map
+    """
+    color_map = num_classes * [0, 0, 0]
+    for i in range(0, num_classes):
+        j = 0
+        lab = i
+        while lab:
+            color_map[i * 3] |= (((lab >> 0) & 1) << (7 - j))
+            color_map[i * 3 + 1] |= (((lab >> 1) & 1) << (7 - j))
+            color_map[i * 3 + 2] |= (((lab >> 2) & 1) << (7 - j))
+            j += 1
+            lab >>= 3
+
+    return color_map
 
 def partition_list(arr, m):
     """split the list 'arr' into m pieces"""
@@ -79,9 +99,14 @@ def predict(model,
         img_lists = partition_list(image_list, nranks)
     else:
         img_lists = [image_list]
+    
 
     added_saved_dir = os.path.join(save_dir, 'added_prediction')
+    mkdir(added_saved_dir)
     pred_saved_dir = os.path.join(save_dir, 'pseudo_color_prediction')
+    mkdir(pred_saved_dir)
+    pred_one_channel_saved_dir = os.path.join(save_dir, 'one_channel_pseudo_color_prediction')
+    mkdir(pred_one_channel_saved_dir)
 
     logger.info("Start to predict...")
     progbar_pred = progbar.Progbar(target=len(img_lists[0]), verbose=1)
@@ -119,7 +144,7 @@ def predict(model,
 
             # get the saved name
             if image_dir is not None:
-                im_file = im_path.replace(image_dir, '')
+                im_file = os.path.basename(im_path)
             else:
                 im_file = os.path.basename(im_path)
             if im_file[0] == '/':
@@ -128,19 +153,21 @@ def predict(model,
             # save added image
             added_image = utils.visualize.visualize(im_path, pred, weight=0.6)
             added_image_path = os.path.join(added_saved_dir, im_file)
-            mkdir(added_image_path)
             cv2.imwrite(added_image_path, added_image)
 
             # save pseudo color prediction
             pred_mask = utils.visualize.get_pseudo_color_map(pred)
             pred_saved_path = os.path.join(pred_saved_dir,
                                            im_file.rsplit(".")[0] + ".png")
-            mkdir(pred_saved_path)
             pred_mask.save(pred_saved_path)
 
-            # pred_im = utils.visualize(im_path, pred, weight=0.0)
-            # pred_saved_path = os.path.join(pred_saved_dir, im_file)
-            # mkdir(pred_saved_path)
-            # cv2.imwrite(pred_saved_path, pred_im)
+            # save one channel pseudo color prediction
+            pred_im_one_channel = Image.fromarray(pred)
+            pred_im_one_channel = pred_im_one_channel.convert('P')
+            colormap = get_color_map_list(256)
+            pred_im_one_channel.putpalette(colormap)
+            pred_one_channel_saved_path = os.path.join(pred_one_channel_saved_dir, im_file)
+            pred_im_one_channel.save(pred_one_channel_saved_path.replace('jpg', 'png'))
+
 
             progbar_pred.update(i + 1)

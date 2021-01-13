@@ -4,9 +4,9 @@ import sys
 import numpy as np
 from PIL import Image
 
-NUM_CLASS = 7
-IMAGE_HEIGHT = 256
-IMAGE_WIDTH = 256
+NUM_CLASS = 2
+IMAGE_HEIGHT = 1024
+IMAGE_WIDTH = 1024
 
 class ImageNotExistException(Exception):
     def __init__(self, img_name):

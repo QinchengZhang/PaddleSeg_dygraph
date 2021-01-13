@@ -108,7 +108,6 @@ def evaluate(model,
                     is_slide=is_slide,
                     stride=stride,
                     crop_size=crop_size)
-
             intersect_area, pred_area, label_area = metrics.calculate_area(
                 pred,
                 label,
