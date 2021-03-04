@@ -20,7 +20,7 @@ val_dataset:
   mode: val
 
 model:
-  type: CellSETR
+  type: HS_UNet
   num_classes: 2
 
 optimizer:

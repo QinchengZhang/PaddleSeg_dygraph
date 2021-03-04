@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+'''
+Author: TJUZQC
+Date: 2021-01-13 01:01:38
+LastEditors: TJUZQC
+LastEditTime: 2021-02-06 19:30:35
+Description: None
+'''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,3 +26,4 @@ from .gscnn_dual_task_loss import DualTaskLoss
 from .edge_attention_loss import EdgeAttentionLoss
 from .bootstrapped_cross_entropy import BootstrappedCrossEntropyLoss
 from .dice_loss import DiceLoss
+from .cedsc import CE_DSC_Loss
