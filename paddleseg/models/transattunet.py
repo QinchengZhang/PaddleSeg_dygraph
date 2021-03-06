@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 13:50:36
 LastEditors: TJUZQC
-LastEditTime: 2021-03-06 12:32:12
+LastEditTime: 2021-03-06 12:55:28
 Description: None
 '''
 from typing import Iterable
@@ -182,7 +182,8 @@ class TransAttentionUNet(nn.Layer):
         # decoded_features = self.decoder(features_encoded, feature_list)
         # instance_segmentation_prediction = self.cls(decoded_features)
 
-        return logit
+        logit_list = [logit]
+        return logit_list
 
 
 def _get_activation(activation: str):
