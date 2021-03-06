@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+'''
+Author: TJUZQC
+Date: 2021-03-04 09:37:34
+LastEditors: TJUZQC
+LastEditTime: 2021-03-06 10:42:58
+Description: None
+'''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,3 +44,4 @@ from .hsattunet import HS_Att_UNet
 from .hsunet import HS_UNet
 from .cellsetr import CellSETR
 from .transunet import TransUNet
+from .transattunet import TransAttentionUNet
