@@ -3,9 +3,10 @@
 Author: TJUZQC
 Date: 2020-12-29 13:50:36
 LastEditors: TJUZQC
-LastEditTime: 2021-03-06 12:55:28
+LastEditTime: 2021-03-18 13:26:35
 Description: None
 '''
+from paddleseg.models.layers.layer_libs import ConvBN, ConvBNReLU
 from typing import Iterable
 
 import paddle
@@ -14,7 +15,7 @@ from paddleseg.cvlibs import manager
 from paddleseg.models import layers
 from paddleseg.models.hsunet import Encoder
 from paddleseg.models.layers import CVTransformer as Transformer
-from paddleseg.models.layers import HSBottleNeck, PositionEmbeddingLearned
+from paddleseg.models.layers import HSBottleNeck, PositionEmbeddingLearned, hierarchicalsplit
 import numpy as np
 from paddleseg import utils
 
@@ -56,8 +57,6 @@ class TransAttentionUNet(nn.Layer):
         # Init backbone
         self.encoder = Encoder(n_channels, [64, 128, 256, 512])
         # Init convolution mapping to match transformer dims
-        # self.convolution_mapping = HSBottleNeck(
-        #     in_channels=512, out_channels=hidden_features)
         self.convolution_mapping = ConvBlock(1024, hidden_features)
         # Init query positions
         self.query_positions = self.create_parameter(
@@ -107,10 +106,10 @@ class TransAttentionUNet(nn.Layer):
             F_g=filters[0], F_l=filters[0], F_out=filters[0] // 2)
         self.up_conv2 = ConvBlock(ch_in=filters[1], ch_out=filters[0])
 
+        # Init classification layer
+        # self.cls = HSBottleNeck(in_channels=64, out_channels=num_classes)
         self.conv_1x1 = nn.Conv2D(
             filters[0], num_classes, kernel_size=1, stride=1, padding=0)
-        # Init classification layer
-        self.cls = HSBottleNeck(in_channels=64, out_channels=num_classes)
 
     def get_parameters(self, lr_main: float = 1e-04, lr_backbone: float = 1e-05) -> Iterable:
         """
@@ -215,6 +214,7 @@ def _get_activation(activation: str):
     }
     return switch.get(activation, None)
 
+
 class Encoder(nn.Layer):
     def __init__(self, input_channels, filters):
         super().__init__()
@@ -241,21 +241,54 @@ class Encoder(nn.Layer):
             short_cuts.append(x)
             x = down_sample(x)
         return x, short_cuts
-        
+
+class HSBottleNeck(nn.Layer):
+    def __init__(self, in_channels: int, out_channels: int, split: int = 5, kernel_size:int=3, stride: int = 1, padding:int=0) -> None:
+        super(HSBottleNeck, self).__init__()
+        self.w = max(2**(split-2), 1)
+        self.residual_function = nn.Sequential(
+            ConvBNReLU(in_channels, self.w*split,
+                       kernel_size=1, stride=stride),
+            hierarchicalsplit.HSBlockBNReLU(self.w, split, kernel_size=kernel_size, stride=stride, padding=padding),
+            ConvBN(self.w*split, out_channels,
+                   kernel_size=1, stride=stride),
+        )
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = ConvBN(
+                in_channels, out_channels, stride=stride, kernel_size=1)
+
+    def forward(self, x):
+        residual = self.residual_function(x)
+        shortcut = self.shortcut(x)
+        return residual + shortcut
+
 class AttentionBlock(nn.Layer):
     def __init__(self, F_g, F_l, F_out):
         super().__init__()
         self.W_g = nn.Sequential(
-            nn.Conv2D(F_g, F_out, kernel_size=1, stride=1, padding=0),
+            HSBottleNeck(
+                F_g, F_out, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(F_out))
+        # self.W_g = nn.Sequential(
+        #     nn.Conv2D(F_g, F_out, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2D(F_out))
 
         self.W_x = nn.Sequential(
-            nn.Conv2D(F_l, F_out, kernel_size=1, stride=1, padding=0),
+            HSBottleNeck(
+                F_l, F_out, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(F_out))
+        # self.W_x = nn.Sequential(
+        #     nn.Conv2D(F_l, F_out, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2D(F_out))
 
         self.psi = nn.Sequential(
-            nn.Conv2D(F_out, 1, kernel_size=1, stride=1, padding=0),
+            HSBottleNeck(
+                F_out, 1, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(1), nn.Sigmoid())
+        # self.psi = nn.Sequential(
+        #     nn.Conv2D(F_out, 1, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2D(1), nn.Sigmoid())
 
         self.relu = nn.ReLU()
 
@@ -267,6 +300,7 @@ class AttentionBlock(nn.Layer):
         res = x * psi
         return res
 
+
 class UpConv(nn.Layer):
     def __init__(self, ch_in, ch_out):
         super().__init__()
@@ -277,6 +311,7 @@ class UpConv(nn.Layer):
 
     def forward(self, x):
         return self.up(x)
+
 
 class AttentionDecoder(nn.Layer):
     def __init__(self, align_corners, use_deconv=False, split=5):
@@ -343,6 +378,7 @@ class AttentionUpSampling(nn.Layer):
         x = paddle.concat([x, short_cut], axis=1)
         x = self.double_conv(x)
         return x
+
 
 class ConvBlock(nn.Layer):
     def __init__(self, ch_in, ch_out):
