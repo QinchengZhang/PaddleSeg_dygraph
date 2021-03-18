@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-01-12 15:26:14
 LastEditors: TJUZQC
-LastEditTime: 2021-03-18 13:24:01
+LastEditTime: 2021-03-18 13:37:47
 Description: None
 '''
 import paddle
@@ -48,15 +48,16 @@ class HSBlock(nn.Layer):
 
 
 class HSBlockBNReLU(nn.Layer):
-    def __init__(self, w: int, split: int, stride: int = 1) -> None:
+    def __init__(self, w: int, split: int, kernel_size:int=3, stride: int = 1, padding:int=0) -> None:
         super(HSBlockBNReLU, self).__init__()
-        self._hsblock = HSBlock(w, split, stride)
+        self._hsblock = HSBlock(w, split, kernel_size=kernel_size, stride=stride, padding=padding)
         self._batch_norm = SyncBatchNorm(split*w)
+        self.relu = nn.ReLU()
 
     def forward(self, x):
         x = self._hsblock(x)
         x = self._batch_norm(x)
-        x = F.relu(x)
+        x = self.relu(x)
         return x
 
 
@@ -71,6 +72,7 @@ class HSBottleNeck(nn.Layer):
             ConvBN(self.w*split, out_channels,
                    kernel_size=1, stride=stride),
         )
+        self.relu = nn.ReLU()
         self.shortcut = nn.Sequential()
         if stride != 1 or in_channels != out_channels:
             self.shortcut = ConvBN(
@@ -79,4 +81,4 @@ class HSBottleNeck(nn.Layer):
     def forward(self, x):
         residual = self.residual_function(x)
         shortcut = self.shortcut(x)
-        return F.relu(residual + shortcut)
+        return self.relu(residual + shortcut)
