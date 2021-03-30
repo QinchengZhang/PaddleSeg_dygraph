@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from paddleseg.models.layers.layer_libs import ConvBN, ConvBNReLU
+from paddleseg.models.layers import hierarchicalsplit
 import paddle
 import paddle.nn as nn
 from paddleseg.cvlibs import manager
@@ -98,21 +100,52 @@ class AttentionUNet(nn.Layer):
         if self.pretrained is not None:
             utils.load_entire_model(self, self.pretrained)
 
+class HSBottleNeck(nn.Layer):
+    def __init__(self, in_channels: int, out_channels: int, split: int = 5, kernel_size:int=3, stride: int = 1, padding:int=0) -> None:
+        super(HSBottleNeck, self).__init__()
+        self.w = max(2**(split-2), 1)
+        self.residual_function = nn.Sequential(
+            ConvBNReLU(in_channels, self.w*split,
+                       kernel_size=1, stride=stride),
+            hierarchicalsplit.HSBlockBNReLU(self.w, split, kernel_size=kernel_size, stride=stride, padding=padding),
+            ConvBN(self.w*split, out_channels,
+                   kernel_size=1, stride=stride),
+        )
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = ConvBN(
+                in_channels, out_channels, stride=stride, kernel_size=1)
 
+    def forward(self, x):
+        residual = self.residual_function(x)
+        shortcut = self.shortcut(x)
+        return residual + shortcut
 class AttentionBlock(nn.Layer):
     def __init__(self, F_g, F_l, F_out):
         super().__init__()
         self.W_g = nn.Sequential(
-            nn.Conv2D(F_g, F_out, kernel_size=1, stride=1, padding=0),
+            HSBottleNeck(
+                F_g, F_out, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(F_out))
+        # self.W_g = nn.Sequential(
+        #     nn.Conv2D(F_g, F_out, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2D(F_out))
 
         self.W_x = nn.Sequential(
-            nn.Conv2D(F_l, F_out, kernel_size=1, stride=1, padding=0),
+            HSBottleNeck(
+                F_l, F_out, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(F_out))
+        # self.W_x = nn.Sequential(
+        #     nn.Conv2D(F_l, F_out, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2D(F_out))
 
         self.psi = nn.Sequential(
-            nn.Conv2D(F_out, 1, kernel_size=1, stride=1, padding=0),
+            HSBottleNeck(
+                F_out, 1, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(1), nn.Sigmoid())
+        # self.psi = nn.Sequential(
+        #     nn.Conv2D(F_out, 1, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2D(1), nn.Sigmoid())
 
         self.relu = nn.ReLU()
 
