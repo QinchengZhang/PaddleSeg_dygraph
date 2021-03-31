@@ -3,13 +3,14 @@
 Author: TJUZQC
 Date: 2020-12-29 12:36:25
 LastEditors: TJUZQC
-LastEditTime: 2021-01-12 15:28:07
+LastEditTime: 2021-03-31 16:33:29
 Description: None
 '''
 from typing import Optional
 
 import paddle
 from paddle import Tensor, nn
+
 
 class PositionEmbeddingLearned(nn.Layer):
     """
@@ -145,14 +146,19 @@ class CVTransformerEncoderLayer(nn.Layer):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  activation=nn.LeakyReLU, normalize_before=False, initializer=nn.initializer.KaimingNormal()):
         super(CVTransformerEncoderLayer, self).__init__()
-        self.self_attn = nn.MultiHeadAttention(d_model, nhead, dropout=dropout, weight_attr=initializer, bias_attr=initializer)
+        self.self_attn = nn.MultiHeadAttention(
+            d_model, nhead, dropout=dropout, weight_attr=initializer, bias_attr=initializer)
         # Implementation of Feedforward model
-        self.linear1 = nn.Linear(d_model, dim_feedforward, weight_attr=initializer, bias_attr=initializer)
+        self.linear1 = nn.Linear(
+            d_model, dim_feedforward, weight_attr=initializer, bias_attr=initializer)
         self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model, weight_attr=initializer, bias_attr=initializer)
+        self.linear2 = nn.Linear(
+            dim_feedforward, d_model, weight_attr=initializer, bias_attr=initializer)
 
-        self.norm1 = nn.LayerNorm(d_model, weight_attr=initializer, bias_attr=initializer)
-        self.norm2 = nn.LayerNorm(d_model, weight_attr=initializer, bias_attr=initializer)
+        self.norm1 = nn.LayerNorm(
+            d_model, weight_attr=initializer, bias_attr=initializer)
+        self.norm2 = nn.LayerNorm(
+            d_model, weight_attr=initializer, bias_attr=initializer)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
 
@@ -200,17 +206,23 @@ class CVTransformerDecoderLayer(nn.Layer):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  activation=nn.LeakyReLU, normalize_before=False, initializer=nn.initializer.KaimingNormal()):
         super(CVTransformerDecoderLayer, self).__init__()
-        self.self_attn = nn.MultiHeadAttention(d_model, nhead, dropout=dropout, weight_attr=initializer, bias_attr=initializer)
+        self.self_attn = nn.MultiHeadAttention(
+            d_model, nhead, dropout=dropout, weight_attr=initializer, bias_attr=initializer)
         self.multihead_attn = nn.MultiHeadAttention(
             d_model, nhead, dropout=dropout, weight_attr=initializer)
         # Implementation of Feedforward model
-        self.linear1 = nn.Linear(d_model, dim_feedforward, weight_attr=initializer, bias_attr=initializer)
+        self.linear1 = nn.Linear(
+            d_model, dim_feedforward, weight_attr=initializer, bias_attr=initializer)
         self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model, weight_attr=initializer, bias_attr=initializer)
+        self.linear2 = nn.Linear(
+            dim_feedforward, d_model, weight_attr=initializer, bias_attr=initializer)
 
-        self.norm1 = nn.LayerNorm(d_model, weight_attr=initializer, bias_attr=initializer)
-        self.norm2 = nn.LayerNorm(d_model, weight_attr=initializer, bias_attr=initializer)
-        self.norm3 = nn.LayerNorm(d_model, weight_attr=initializer, bias_attr=initializer)
+        self.norm1 = nn.LayerNorm(
+            d_model, weight_attr=initializer, bias_attr=initializer)
+        self.norm2 = nn.LayerNorm(
+            d_model, weight_attr=initializer, bias_attr=initializer)
+        self.norm3 = nn.LayerNorm(
+            d_model, weight_attr=initializer, bias_attr=initializer)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
         self.dropout3 = nn.Dropout(dropout)
@@ -285,3 +297,17 @@ def build_cvtransformer(args):
         return_intermediate_dec=True,
         initializer=args.initializer,
     )
+
+
+class SwinTransformerBlock(nn.Layer):
+    def __init__(self,
+                 patch_height, patch_width, d_model=1024, nhead=8, dim_feedforward=2048, dropout=0.1,
+                 activation=nn.GELU,
+                 initializer=nn.initializer.KaimingNormal(),
+                 msa_type='W'):
+        # Call super constructor
+        super(SwinTransformerBlock, self).__init__()
+        self.layer_norm1 = nn.LayerNorm([patch_height, patch_width, d_model], weight_attr=initializer, bias_attr=initializer)
+
+    def forward(self, x):
+        pass
