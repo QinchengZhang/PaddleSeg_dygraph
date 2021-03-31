@@ -123,29 +123,29 @@ class HSBottleNeck(nn.Layer):
 class AttentionBlock(nn.Layer):
     def __init__(self, F_g, F_l, F_out):
         super().__init__()
-        self.W_g = nn.Sequential(
-            HSBottleNeck(
-                F_g, F_out, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm2D(F_out))
         # self.W_g = nn.Sequential(
-        #     nn.Conv2D(F_g, F_out, kernel_size=1, stride=1, padding=0),
+        #     HSBottleNeck(
+        #         F_g, F_out, kernel_size=1, stride=1, padding=0),
         #     nn.BatchNorm2D(F_out))
-
-        self.W_x = nn.Sequential(
-            HSBottleNeck(
-                F_l, F_out, kernel_size=1, stride=1, padding=0),
+        self.W_g = nn.Sequential(
+            nn.Conv2D(F_g, F_out, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(F_out))
-        # self.W_x = nn.Sequential(
-        #     nn.Conv2D(F_l, F_out, kernel_size=1, stride=1, padding=0),
-        #     nn.BatchNorm2D(F_out))
 
-        self.psi = nn.Sequential(
-            HSBottleNeck(
-                F_out, 1, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm2D(1), nn.Sigmoid())
+        # self.W_x = nn.Sequential(
+        #     HSBottleNeck(
+        #         F_l, F_out, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2D(F_out))
+        self.W_x = nn.Sequential(
+            nn.Conv2D(F_l, F_out, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm2D(F_out))
+
         # self.psi = nn.Sequential(
-        #     nn.Conv2D(F_out, 1, kernel_size=1, stride=1, padding=0),
+        #     HSBottleNeck(
+        #         F_out, 1, kernel_size=1, stride=1, padding=0),
         #     nn.BatchNorm2D(1), nn.Sigmoid())
+        self.psi = nn.Sequential(
+            nn.Conv2D(F_out, 1, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm2D(1), nn.Sigmoid())
 
         self.relu = nn.ReLU()
 
