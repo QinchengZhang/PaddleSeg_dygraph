@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-03-31 10:27:53
 LastEditors: TJUZQC
-LastEditTime: 2021-04-06 15:43:09
+LastEditTime: 2021-04-06 16:12:34
 Description: None
 '''
 from typing import Iterable
@@ -77,7 +77,7 @@ class SwinTransUNet(nn.Layer):
                 x.shape[2:],
                 mode='bilinear',
                 align_corners=self.align_corners)
-        return self.cls(x)
+        return [self.cls(x)]
 
 class Decoder(nn.Layer):
     def __init__(self, align_corners, use_deconv=False):
@@ -90,10 +90,10 @@ class Decoder(nn.Layer):
         ])
 
     def forward(self, x, short_cuts):
-        print("input size:", x.shape)
+        # print("input size:", x.shape)
         for i in range(len(short_cuts)):
             x = self.up_sample_list[i](x, short_cuts[-(i + 1)])
-            print("up sample:", x.shape)
+            # print("up sample:", x.shape)
         return x
 
 
