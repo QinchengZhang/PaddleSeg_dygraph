@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-04-06 09:54:12
 LastEditors: TJUZQC
-LastEditTime: 2021-04-06 12:55:43
+LastEditTime: 2021-04-06 14:59:37
 Description: None
 '''
 from typing import Optional
@@ -70,7 +70,6 @@ def create_mask(window_size, displacement, upper_lower, left_right):
 
 def get_relative_distances(window_size):
     indices = np.array([[x, y] for x in range(window_size) for y in range(window_size)])
-    print("indices", indices.shape)
     distances = paddle.to_tensor(indices[np.newaxis, :, :] - indices[:, np.newaxis, :])
     return distances
 
@@ -84,6 +83,7 @@ class WindowAttention(nn.Layer):
         self.window_size = window_size
         self.relative_pos_embedding = relative_pos_embedding
         self.shifted = shifted
+        self.softmax = nn.Softmax()
 
         if self.shifted:
             displacement = window_size // 2
@@ -109,7 +109,6 @@ class WindowAttention(nn.Layer):
     def forward(self, x):
         if self.shifted:
             x = self.cyclic_shift(x)
-        print("window attention", x.shape)
         b, n_h, n_w, _, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, axis=-1)
         nw_h = n_h // self.window_size
@@ -120,23 +119,20 @@ class WindowAttention(nn.Layer):
                                 h=h, w_h=self.window_size, w_w=self.window_size), qkv)
 
         dots = paddle.to_tensor(np.einsum('b h w i d, b h w j d -> b h w i j', q.numpy(), k.numpy())) * self.scale
-        print("window attention", dots.shape, self.pos_embedding.shape, self.relative_indices.shape)
         if self.relative_pos_embedding:
-            dots += self.pos_embedding[self.relative_indices[:, :, 0], self.relative_indices[:, :, 1]]
+            dots += paddle.to_tensor(self.pos_embedding.numpy()[self.relative_indices[:, :, 0].numpy(), self.relative_indices[:, :, 1].numpy()])
         else:
             dots += self.pos_embedding
 
         if self.shifted:
             dots[:, :, -nw_w:] += self.upper_lower_mask
             dots[:, :, nw_w - 1::nw_w] += self.left_right_mask
-        print("window attention", x.shape)
-        attn = dots.softmax(dim=-1)
+        attn = self.softmax(dots)
 
-        out = np.einsum('b h w i j, b h w j d -> b h w i d', attn, v)
+        out = paddle.to_tensor(np.einsum('b h w i j, b h w j d -> b h w i d', attn.numpy(), v.numpy()))
         out = rearrange(out, 'b h (nw_h nw_w) (w_h w_w) d -> b (nw_h w_h) (nw_w w_w) (h d)',
                         h=h, w_h=self.window_size, w_w=self.window_size, nw_h=nw_h, nw_w=nw_w)
         out = self.to_out(out)
-        print("window attention", x.shape)
         if self.shifted:
             out = self.cyclic_back_shift(out)
         return out
@@ -198,7 +194,7 @@ class StageModule(nn.Layer):
 
 class SwinTransformer(nn.Layer):
     def __init__(self, *, hidden_dim, layers, heads, channels=3, num_classes=1000, head_dim=32, window_size=8,
-                 downscaling_factors=(4, 2, 2, 2), relative_pos_embedding=True):
+                 downscaling_factors=(2, 2, 2, 2), relative_pos_embedding=True):
         super().__init__()
 
         self.stage1 = StageModule(in_channels=channels, hidden_dimension=hidden_dim, layers=layers[0],
@@ -214,23 +210,21 @@ class SwinTransformer(nn.Layer):
                                   downscaling_factor=downscaling_factors[3], num_heads=heads[3], head_dim=head_dim,
                                   window_size=window_size, relative_pos_embedding=relative_pos_embedding)
 
-        self.mlp_head = nn.Sequential(
-            nn.LayerNorm(hidden_dim * 8),
-            nn.Linear(hidden_dim * 8, num_classes)
-        )
-
     def forward(self, img):
+        short_cuts = []
+        print("input size:", img.shape)
         x = self.stage1(img)
-        print(x.shape)
+        short_cuts.append(x)
+        print("after stage1 size:", x.shape)
         x = self.stage2(x)
-        print(x.shape)
+        short_cuts.append(x)
+        print("after stage2 size:", x.shape)
         x = self.stage3(x)
-        print(x.shape)
+        short_cuts.append(x)
+        print("after stage3 size:", x.shape)
         x = self.stage4(x)
-        print(x.shape)
-        x = x.mean(dim=[2, 3])
-        print(x.shape)
-        return self.mlp_head(x)
+        print("after stage4 size:", x.shape)
+        return x, short_cuts
     
-def swin_t(hidden_dim=96, layers=(2, 2, 6, 2), heads=(3, 6, 12, 24), **kwargs):
+def swin_t(hidden_dim=128, layers=(2, 2, 6, 2), heads=(3, 6, 12, 24), **kwargs):
     return SwinTransformer(hidden_dim=hidden_dim, layers=layers, heads=heads, **kwargs)

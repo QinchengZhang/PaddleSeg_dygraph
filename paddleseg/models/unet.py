@@ -93,9 +93,11 @@ class Encoder(nn.Layer):
     def forward(self, x):
         short_cuts = []
         x = self.double_conv(x)
+        print("input size:", x.shape)
         for down_sample in self.down_sample_list:
             short_cuts.append(x)
             x = down_sample(x)
+            print("down sample:", x.shape)
         return x, short_cuts
 
 
@@ -110,8 +112,10 @@ class Decoder(nn.Layer):
         ])
 
     def forward(self, x, short_cuts):
+        print("input size:", x.shape)
         for i in range(len(short_cuts)):
             x = self.up_sample_list[i](x, short_cuts[-(i + 1)])
+            print("up sample:", x.shape)
         return x
 
 

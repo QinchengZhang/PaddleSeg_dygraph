@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-03-04 09:37:34
 LastEditors: TJUZQC
-LastEditTime: 2021-03-06 11:10:45
+LastEditTime: 2021-04-06 15:10:15
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -33,7 +33,7 @@ from .gcnet import *
 from .ocrnet import *
 from .pspnet import *
 from .gscnn import GSCNN
-from .unet import UNet
+from .unet import *
 from .hardnet import HarDNet
 from .u2net import U2Net, U2Netp
 from .attention_unet import AttentionUNet
@@ -44,3 +44,4 @@ from .hsattunet import HS_Att_UNet
 from .hsunet import HS_UNet
 from .transunet import TransUNet
 from .transattunet import TransAttentionUNet
+from .ltunet import SwinTransUNet
