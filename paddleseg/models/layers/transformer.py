@@ -3,13 +3,14 @@
 Author: TJUZQC
 Date: 2020-12-29 12:36:25
 LastEditors: TJUZQC
-LastEditTime: 2021-03-31 16:33:29
+LastEditTime: 2021-04-06 09:54:20
 Description: None
 '''
 from typing import Optional
 
 import paddle
 from paddle import Tensor, nn
+from paddleseg.utils.einops.layers.paddle import Rearrange
 
 
 class PositionEmbeddingLearned(nn.Layer):
@@ -297,17 +298,3 @@ def build_cvtransformer(args):
         return_intermediate_dec=True,
         initializer=args.initializer,
     )
-
-
-class SwinTransformerBlock(nn.Layer):
-    def __init__(self,
-                 patch_height, patch_width, d_model=1024, nhead=8, dim_feedforward=2048, dropout=0.1,
-                 activation=nn.GELU,
-                 initializer=nn.initializer.KaimingNormal(),
-                 msa_type='W'):
-        # Call super constructor
-        super(SwinTransformerBlock, self).__init__()
-        self.layer_norm1 = nn.LayerNorm([patch_height, patch_width, d_model], weight_attr=initializer, bias_attr=initializer)
-
-    def forward(self, x):
-        pass

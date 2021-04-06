@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-01-12 15:07:21
 LastEditors: TJUZQC
-LastEditTime: 2021-03-30 17:23:05
+LastEditTime: 2021-04-06 10:07:34
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -26,3 +26,4 @@ from .pyramid_pool import ASPPModule, PPModule
 from .attention import AttentionBlock
 from .hierarchicalsplit import *
 from .transformer import *
+from .swin_transformer import *
