@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-04-06 09:54:12
 LastEditors: TJUZQC
-LastEditTime: 2021-04-06 10:54:53
+LastEditTime: 2021-04-06 12:55:43
 Description: None
 '''
 from typing import Optional
@@ -27,8 +27,8 @@ class CyclicShift(nn.Layer):
 class Residual(nn.Layer):
     def __init__(self, fn):
         super(Residual, self).__init__()
-        self.fn = fn
-    
+        self.fn = fn        
+
     def forward(self, x, **kwargs):
         return self.fn(x, **kwargs) + x
 
@@ -70,6 +70,7 @@ def create_mask(window_size, displacement, upper_lower, left_right):
 
 def get_relative_distances(window_size):
     indices = np.array([[x, y] for x in range(window_size) for y in range(window_size)])
+    print("indices", indices.shape)
     distances = paddle.to_tensor(indices[np.newaxis, :, :] - indices[:, np.newaxis, :])
     return distances
 
@@ -97,10 +98,10 @@ class WindowAttention(nn.Layer):
 
         if self.relative_pos_embedding:
             self.relative_indices = get_relative_distances(window_size) + window_size - 1
-            self.pos_embedding = paddle.nn.ParameterList([paddle.create_parameter(shape=[2 * window_size - 1, 2 * window_size - 1], dtype='float32')])
+            self.pos_embedding = paddle.create_parameter(shape=[2 * window_size - 1, 2 * window_size - 1], dtype='float32')
             # self.pos_embedding = nn.Parameter(paddle.randn(2 * window_size - 1, 2 * window_size - 1))
         else:
-            self.pos_embedding = paddle.nn.ParameterList([paddle.create_parameter(shape=[window_size ** 2, window_size ** 2], dtype='float32')])
+            self.pos_embedding = paddle.create_parameter(shape=[window_size ** 2, window_size ** 2], dtype='float32')
             # self.pos_embedding = nn.Parameter()
 
         self.to_out = nn.Linear(inner_dim, dim)
@@ -108,9 +109,8 @@ class WindowAttention(nn.Layer):
     def forward(self, x):
         if self.shifted:
             x = self.cyclic_shift(x)
-
+        print("window attention", x.shape)
         b, n_h, n_w, _, h = *x.shape, self.heads
-
         qkv = self.to_qkv(x).chunk(3, axis=-1)
         nw_h = n_h // self.window_size
         nw_w = n_w // self.window_size
@@ -119,8 +119,8 @@ class WindowAttention(nn.Layer):
             lambda t: rearrange(t, 'b (nw_h w_h) (nw_w w_w) (h d) -> b h (nw_h nw_w) (w_h w_w) d',
                                 h=h, w_h=self.window_size, w_w=self.window_size), qkv)
 
-        dots = np.einsum('b h w i d, b h w j d -> b h w i j', q, k) * self.scale
-
+        dots = paddle.to_tensor(np.einsum('b h w i d, b h w j d -> b h w i j', q.numpy(), k.numpy())) * self.scale
+        print("window attention", dots.shape, self.pos_embedding.shape, self.relative_indices.shape)
         if self.relative_pos_embedding:
             dots += self.pos_embedding[self.relative_indices[:, :, 0], self.relative_indices[:, :, 1]]
         else:
@@ -129,14 +129,14 @@ class WindowAttention(nn.Layer):
         if self.shifted:
             dots[:, :, -nw_w:] += self.upper_lower_mask
             dots[:, :, nw_w - 1::nw_w] += self.left_right_mask
-
+        print("window attention", x.shape)
         attn = dots.softmax(dim=-1)
 
         out = np.einsum('b h w i j, b h w j d -> b h w i d', attn, v)
         out = rearrange(out, 'b h (nw_h nw_w) (w_h w_w) d -> b (nw_h w_h) (nw_w w_w) (h d)',
                         h=h, w_h=self.window_size, w_w=self.window_size, nw_h=nw_h, nw_w=nw_w)
         out = self.to_out(out)
-
+        print("window attention", x.shape)
         if self.shifted:
             out = self.cyclic_back_shift(out)
         return out
@@ -221,10 +221,15 @@ class SwinTransformer(nn.Layer):
 
     def forward(self, img):
         x = self.stage1(img)
+        print(x.shape)
         x = self.stage2(x)
+        print(x.shape)
         x = self.stage3(x)
+        print(x.shape)
         x = self.stage4(x)
+        print(x.shape)
         x = x.mean(dim=[2, 3])
+        print(x.shape)
         return self.mlp_head(x)
     
 def swin_t(hidden_dim=96, layers=(2, 2, 6, 2), heads=(3, 6, 12, 24), **kwargs):
