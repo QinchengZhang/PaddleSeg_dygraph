@@ -1,5 +1,5 @@
-from einops import EinopsError
-from einops.parsing import ParsedExpression, _ellipsis, AnonymousAxis
+from .. import EinopsError
+from ..parsing import ParsedExpression, _ellipsis, AnonymousAxis
 import warnings
 import string
 from ..einops import _product
