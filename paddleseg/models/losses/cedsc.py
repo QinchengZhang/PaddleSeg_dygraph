@@ -29,7 +29,7 @@ class CE_DSC_Loss(nn.Layer):
         self.ignore_index = ignore_index
         self.eps = 1e-5
         self.diceloss = DiceLoss(ignore_index)
-        self.celoss = CrossEntropyLoss(ignore_index)
+        self.celoss = CrossEntropyLoss(ignore_index=ignore_index)
 
     def forward(self, logits, labels):
         print(self.diceloss(logits, labels), self.celoss(logits, labels))
