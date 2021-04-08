@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-02-06 19:26:59
 LastEditors: TJUZQC
-LastEditTime: 2021-04-08 13:39:42
+LastEditTime: 2021-04-08 13:43:24
 Description: None
 '''
 import paddle
@@ -32,5 +32,4 @@ class CE_DSC_Loss(nn.Layer):
         self.celoss = CrossEntropyLoss(ignore_index=ignore_index)
 
     def forward(self, logits, labels):
-        print(self.diceloss(logits, labels), self.celoss(logits, labels))
         return self.diceloss(logits, labels) + self.celoss(logits, labels)
