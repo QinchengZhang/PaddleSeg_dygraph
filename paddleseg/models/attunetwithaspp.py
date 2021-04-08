@@ -44,8 +44,8 @@ class ASPPAttentionUNet(nn.Layer):
         super().__init__()
         n_channels = 3
         self.encoder = Encoder(n_channels, [64, 128, 256, 512])
-        self.aspp = ASPPModule(aspp_ratios=aspp_ratios, in_channels=512,
-                               out_channels=512, align_corners=align_corners)
+        self.aspp = ASPPModule(aspp_ratios=aspp_ratios, in_channels=1024,
+                               out_channels=1024, align_corners=align_corners)
         filters = np.array([64, 128, 256, 512, 1024])
         self.up5 = UpConv(ch_in=filters[4], ch_out=filters[3])
         self.att5 = AttentionBlock(
