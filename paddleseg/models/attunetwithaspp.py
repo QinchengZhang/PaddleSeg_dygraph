@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from paddleseg.models.layers.layer_libs import ConvBN, ConvBNReLU
-from paddleseg.models.layers import hierarchicalsplit
+from paddleseg.models.layers import ASPPModule
 import paddle
 import paddle.nn as nn
 from paddleseg.cvlibs import manager
@@ -23,7 +23,7 @@ import numpy as np
 
 
 @manager.MODELS.add_component
-class AttentionUNet(nn.Layer):
+class ASPPAttentionUNet(nn.Layer):
     """
     The Attention-UNet implementation based on PaddlePaddle.
     As mentioned in the original paper, author proposes a novel attention gate (AG)
@@ -40,10 +40,11 @@ class AttentionUNet(nn.Layer):
         pretrained (str, optional): The path or url of pretrained model. Default: None.
     """
 
-    def __init__(self, num_classes, pretrained=None):
+    def __init__(self, num_classes, aspp_ratios=(6,12,18,24), pretrained=None):
         super().__init__()
         n_channels = 3
         self.encoder = Encoder(n_channels, [64, 128, 256, 512])
+        self.aspp = ASPPModule(aspp_ratios=aspp_ratios, in_channels=512,out_channels=512)
         filters = np.array([64, 128, 256, 512, 1024])
         self.up5 = UpConv(ch_in=filters[4], ch_out=filters[3])
         self.att5 = AttentionBlock(
@@ -72,6 +73,7 @@ class AttentionUNet(nn.Layer):
 
     def forward(self, x):
         x5, (x1, x2, x3, x4) = self.encoder(x)
+        x5 = self.aspp(x5)
         d5 = self.up5(x5)
         x4 = self.att5(g=d5, x=x4)
         d5 = paddle.concat([x4, d5], axis=1)
