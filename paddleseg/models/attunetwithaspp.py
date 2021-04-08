@@ -40,11 +40,12 @@ class ASPPAttentionUNet(nn.Layer):
         pretrained (str, optional): The path or url of pretrained model. Default: None.
     """
 
-    def __init__(self, num_classes, aspp_ratios=(6,12,18,24), pretrained=None):
+    def __init__(self, num_classes, aspp_ratios=(6, 12, 18, 24), pretrained=None, align_corners=False):
         super().__init__()
         n_channels = 3
         self.encoder = Encoder(n_channels, [64, 128, 256, 512])
-        self.aspp = ASPPModule(aspp_ratios=aspp_ratios, in_channels=512,out_channels=512)
+        self.aspp = ASPPModule(aspp_ratios=aspp_ratios, in_channels=512,
+                               out_channels=512, align_corners=align_corners)
         filters = np.array([64, 128, 256, 512, 1024])
         self.up5 = UpConv(ch_in=filters[4], ch_out=filters[3])
         self.att5 = AttentionBlock(
@@ -101,6 +102,8 @@ class ASPPAttentionUNet(nn.Layer):
     def init_weight(self):
         if self.pretrained is not None:
             utils.load_entire_model(self, self.pretrained)
+
+
 class AttentionBlock(nn.Layer):
     def __init__(self, F_g, F_l, F_out):
         super().__init__()
