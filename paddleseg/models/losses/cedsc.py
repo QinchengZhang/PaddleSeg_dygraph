@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-02-06 19:26:59
 LastEditors: TJUZQC
-LastEditTime: 2021-04-08 13:36:43
+LastEditTime: 2021-04-08 13:39:42
 Description: None
 '''
 import paddle
@@ -11,8 +11,7 @@ from paddle import nn
 import paddle.nn.functional as F
 
 from paddleseg.cvlibs import manager
-from paddleseg.models.losses import DiceLoss
-from paddle.nn import CrossEntropyLoss
+from paddleseg.models.losses import CrossEntropyLoss, DiceLoss
 
 
 @manager.LOSSES.add_component
@@ -30,7 +29,7 @@ class CE_DSC_Loss(nn.Layer):
         self.ignore_index = ignore_index
         self.eps = 1e-5
         self.diceloss = DiceLoss(ignore_index)
-        self.celoss = CrossEntropyLoss(ignore_index=ignore_index)
+        self.celoss = CrossEntropyLoss(ignore_index)
 
     def forward(self, logits, labels):
         print(self.diceloss(logits, labels), self.celoss(logits, labels))
