@@ -40,7 +40,7 @@ from .attention_unet import AttentionUNet
 from .unet_plusplus import UNetPlusPlus
 from .emanet import *
 from .isanet import *
-from .hsattunet import HS_Att_UNet
+from .hsattunet import HSAttentionUNet
 from .hsunet import HS_UNet
 from .transunet import TransUNet
 from .transattunet import TransAttentionUNet

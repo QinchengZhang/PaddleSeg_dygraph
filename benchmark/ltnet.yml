@@ -20,7 +20,10 @@ val_dataset:
   mode: val
 
 model:
-  type: TransAttentionUNet
+  type: SwinTransUNet
+  hidden_dim: 128
+  layers: [2,2,6,2]
+  heads: [3,6,12,24]
   num_classes: 2
 
 optimizer:

@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from re import S
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
+from paddle.nn.functional.common import upsample
 
 from paddleseg import utils
 from paddleseg.cvlibs import manager
@@ -42,12 +44,12 @@ class UNet(nn.Layer):
     def __init__(self,
                  num_classes,
                  align_corners=False,
-                 use_deconv=False,
+                 resample_mode='bilinear',
                  pretrained=None):
         super().__init__()
 
         self.encode = Encoder()
-        self.decode = Decoder(align_corners, use_deconv=use_deconv)
+        self.decode = Decoder(align_corners, mode=resample_mode)
         self.cls = self.conv = nn.Conv2D(
             in_channels=64,
             out_channels=num_classes,
@@ -93,29 +95,25 @@ class Encoder(nn.Layer):
     def forward(self, x):
         short_cuts = []
         x = self.double_conv(x)
-        print("input size:", x.shape)
         for down_sample in self.down_sample_list:
             short_cuts.append(x)
             x = down_sample(x)
-            print("down sample:", x.shape)
         return x, short_cuts
 
 
 class Decoder(nn.Layer):
-    def __init__(self, align_corners, use_deconv=False):
+    def __init__(self, align_corners, mode='bilinear'):
         super().__init__()
 
         up_channels = [[512, 256], [256, 128], [128, 64], [64, 64]]
         self.up_sample_list = nn.LayerList([
-            UpSampling(channel[0], channel[1], align_corners, use_deconv)
+            UpSampling(channel[0], channel[1], align_corners, mode)
             for channel in up_channels
         ])
 
     def forward(self, x, short_cuts):
-        print("input size:", x.shape)
         for i in range(len(short_cuts)):
             x = self.up_sample_list[i](x, short_cuts[-(i + 1)])
-            print("up sample:", x.shape)
         return x
 
 
@@ -124,36 +122,18 @@ class UpSampling(nn.Layer):
                  in_channels,
                  out_channels,
                  align_corners,
-                 use_deconv=False):
+                 mode):
         super().__init__()
 
         self.align_corners = align_corners
 
-        self.use_deconv = use_deconv
-        if self.use_deconv:
-            self.deconv = nn.Conv2DTranspose(
-                in_channels,
-                out_channels // 2,
-                kernel_size=2,
-                stride=2,
-                padding=0)
-            in_channels = in_channels + out_channels // 2
-        else:
-            in_channels *= 2
-
+        self.upsample = nn.Upsample(scale_factor=2, mode=mode, align_corners=align_corners)
         self.double_conv = nn.Sequential(
-            layers.ConvBNReLU(in_channels, out_channels, 3),
+            layers.ConvBNReLU(in_channels+in_channels, out_channels, 3),
             layers.ConvBNReLU(out_channels, out_channels, 3))
 
     def forward(self, x, short_cut):
-        if self.use_deconv:
-            x = self.deconv(x)
-        else:
-            x = F.interpolate(
-                x,
-                short_cut.shape[2:],
-                mode='bilinear',
-                align_corners=self.align_corners)
+        x = self.upsample(x)
         x = paddle.concat([x, short_cut], axis=1)
         x = self.double_conv(x)
         return x

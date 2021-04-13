@@ -3,21 +3,19 @@
 Author: TJUZQC
 Date: 2020-12-29 13:50:36
 LastEditors: TJUZQC
-LastEditTime: 2021-03-18 13:26:35
+LastEditTime: 2021-04-10 02:25:10
 Description: None
 '''
-from paddleseg.models.layers.layer_libs import ConvBN, ConvBNReLU
 from typing import Iterable
 
+import numpy as np
 import paddle
 import paddle.nn as nn
 from paddleseg.cvlibs import manager
 from paddleseg.models import layers
-from paddleseg.models.hsunet import Encoder
 from paddleseg.models.layers import CVTransformer as Transformer
-from paddleseg.models.layers import HSBottleNeck, PositionEmbeddingLearned, hierarchicalsplit
-import numpy as np
-from paddleseg import utils
+from paddleseg.models.layers import PositionEmbeddingLearned
+from paddleseg.models.layers.layer_libs import ConvBNReLU
 
 
 @manager.MODELS.add_component
@@ -35,7 +33,7 @@ class TransAttentionUNet(nn.Layer):
                  num_decoder_layers: int = 6,
                  dropout: float = 0.1,
                  transformer_attention_heads: int = 8,
-                 transformer_activation: str = 'leakyrelu',
+                 transformer_activation: str = 'gelu',
                  segmentation_attention_heads: int = 8,
                  segmentation_head_final_activation: str = 'sigmoid') -> None:
         """
@@ -57,7 +55,7 @@ class TransAttentionUNet(nn.Layer):
         # Init backbone
         self.encoder = Encoder(n_channels, [64, 128, 256, 512])
         # Init convolution mapping to match transformer dims
-        self.convolution_mapping = ConvBlock(1024, hidden_features)
+        self.convolution_mapping = ConvBNReLU(1024, hidden_features, kernel_size=3)
         # Init query positions
         self.query_positions = self.create_parameter(
             [number_of_query_positions, hidden_features], dtype='float32')
@@ -89,27 +87,26 @@ class TransAttentionUNet(nn.Layer):
         self.up5 = UpConv(ch_in=filters[4], ch_out=filters[3])
         self.att5 = AttentionBlock(
             F_g=filters[3], F_l=filters[3], F_out=filters[2])
-        self.up_conv5 = ConvBlock(ch_in=filters[4], ch_out=filters[3])
+        self.up_conv5 = ConvBNReLU(in_channels=filters[4], out_channels=filters[3], kernel_size=3)
 
         self.up4 = UpConv(ch_in=filters[3], ch_out=filters[2])
         self.att4 = AttentionBlock(
             F_g=filters[2], F_l=filters[2], F_out=filters[1])
-        self.up_conv4 = ConvBlock(ch_in=filters[3], ch_out=filters[2])
+        self.up_conv4 = ConvBNReLU(in_channels=filters[3], out_channels=filters[2], kernel_size=3)
 
         self.up3 = UpConv(ch_in=filters[2], ch_out=filters[1])
         self.att3 = AttentionBlock(
             F_g=filters[1], F_l=filters[1], F_out=filters[0])
-        self.up_conv3 = ConvBlock(ch_in=filters[2], ch_out=filters[1])
+        self.up_conv3 = ConvBNReLU(in_channels=filters[2], out_channels=filters[1], kernel_size=3)
 
         self.up2 = UpConv(ch_in=filters[1], ch_out=filters[0])
         self.att2 = AttentionBlock(
             F_g=filters[0], F_l=filters[0], F_out=filters[0] // 2)
-        self.up_conv2 = ConvBlock(ch_in=filters[1], ch_out=filters[0])
+        self.up_conv2 = ConvBNReLU(in_channels=filters[1], out_channels=filters[0], kernel_size=3)
 
         # Init classification layer
-        # self.cls = HSBottleNeck(in_channels=64, out_channels=num_classes)
-        self.conv_1x1 = nn.Conv2D(
-            filters[0], num_classes, kernel_size=1, stride=1, padding=0)
+        self.cls = nn.Conv2D(
+            filters[0], num_classes, kernel_size=3, stride=1, padding=1)
 
     def get_parameters(self, lr_main: float = 1e-04, lr_backbone: float = 1e-05) -> Iterable:
         """
@@ -176,10 +173,7 @@ class TransAttentionUNet(nn.Layer):
         d2 = paddle.concat((x1, d2), axis=1)
         d2 = self.up_conv2(d2)
 
-        logit = self.conv_1x1(d2)
-        # logit_list = [logit]
-        # decoded_features = self.decoder(features_encoded, feature_list)
-        # instance_segmentation_prediction = self.cls(decoded_features)
+        logit = self.cls(d2)
 
         logit_list = [logit]
         return logit_list
@@ -242,53 +236,20 @@ class Encoder(nn.Layer):
             x = down_sample(x)
         return x, short_cuts
 
-class HSBottleNeck(nn.Layer):
-    def __init__(self, in_channels: int, out_channels: int, split: int = 5, kernel_size:int=3, stride: int = 1, padding:int=0) -> None:
-        super(HSBottleNeck, self).__init__()
-        self.w = max(2**(split-2), 1)
-        self.residual_function = nn.Sequential(
-            ConvBNReLU(in_channels, self.w*split,
-                       kernel_size=1, stride=stride),
-            hierarchicalsplit.HSBlockBNReLU(self.w, split, kernel_size=kernel_size, stride=stride, padding=padding),
-            ConvBN(self.w*split, out_channels,
-                   kernel_size=1, stride=stride),
-        )
-        self.shortcut = nn.Sequential()
-        if stride != 1 or in_channels != out_channels:
-            self.shortcut = ConvBN(
-                in_channels, out_channels, stride=stride, kernel_size=1)
-
-    def forward(self, x):
-        residual = self.residual_function(x)
-        shortcut = self.shortcut(x)
-        return residual + shortcut
-
 class AttentionBlock(nn.Layer):
     def __init__(self, F_g, F_l, F_out):
         super().__init__()
         self.W_g = nn.Sequential(
-            HSBottleNeck(
-                F_g, F_out, kernel_size=1, stride=1, padding=0),
+            nn.Conv2D(F_g, F_out, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(F_out))
-        # self.W_g = nn.Sequential(
-        #     nn.Conv2D(F_g, F_out, kernel_size=1, stride=1, padding=0),
-        #     nn.BatchNorm2D(F_out))
 
         self.W_x = nn.Sequential(
-            HSBottleNeck(
-                F_l, F_out, kernel_size=1, stride=1, padding=0),
+            nn.Conv2D(F_l, F_out, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(F_out))
-        # self.W_x = nn.Sequential(
-        #     nn.Conv2D(F_l, F_out, kernel_size=1, stride=1, padding=0),
-        #     nn.BatchNorm2D(F_out))
 
         self.psi = nn.Sequential(
-            HSBottleNeck(
-                F_out, 1, kernel_size=1, stride=1, padding=0),
+            nn.Conv2D(F_out, 1, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(1), nn.Sigmoid())
-        # self.psi = nn.Sequential(
-        #     nn.Conv2D(F_out, 1, kernel_size=1, stride=1, padding=0),
-        #     nn.BatchNorm2D(1), nn.Sigmoid())
 
         self.relu = nn.ReLU()
 
@@ -306,88 +267,8 @@ class UpConv(nn.Layer):
         super().__init__()
         self.up = nn.Sequential(
             nn.Upsample(scale_factor=2, mode="bilinear"),
-            nn.Conv2D(ch_in, ch_out, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2D(ch_out), nn.ReLU())
+            ConvBNReLU(ch_in, ch_out, kernel_size=3))
 
     def forward(self, x):
         return self.up(x)
-
-
-class AttentionDecoder(nn.Layer):
-    def __init__(self, align_corners, use_deconv=False, split=5):
-        super(AttentionDecoder, self).__init__()
-
-        self.up_channels = [[512, 256], [256, 128], [128, 64], [64, 64]]
-        self.up_sample_list = nn.LayerList([
-            AttentionUpSampling(
-                channel[0], channel[1], align_corners, use_deconv, split)
-            for channel in self.up_channels
-        ])
-
-    def forward(self, x, short_cuts):
-        for i in range(len(short_cuts)):
-            x = self.up_sample_list[i](x, short_cuts[-(i + 1)])
-        return x
-
-
-class AttentionUpSampling(nn.Layer):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 align_corners,
-                 use_deconv=False,
-                 split=5):
-        super().__init__()
-
-        self.align_corners = align_corners
-
-        self.use_deconv = use_deconv
-
-        if self.use_deconv:
-            self.deconv = nn.Conv2DTranspose(
-                in_channels,
-                out_channels,
-                kernel_size=2,
-                stride=2,
-                padding=0)
-        else:
-            self.upsample = nn.Sequential(
-                nn.Upsample(scale_factor=2, mode="bilinear",
-                            align_corners=self.align_corners),
-                nn.Conv2D(in_channels, out_channels,
-                          kernel_size=3, stride=1, padding=1),
-                nn.BatchNorm2D(out_channels),
-                nn.ReLU()
-            )
-
-        self.attention_block = AttentionBlock(
-            in_channels, in_channels, out_channels)
-
-        self.double_conv = nn.Sequential(
-            HSBottleNeck(in_channels+out_channels, out_channels, split),
-            HSBottleNeck(out_channels+out_channels, out_channels, split))
-
-    def forward(self, x, short_cut):
-        if self.use_deconv:
-            x = self.deconv(x)
-        else:
-            x = self.upsample(x)
-        print(x.shape, short_cut.shape)
-        short_cut = self.attention_block(g=x, x=short_cut)
-        print(x.shape, short_cut.shape)
-        x = paddle.concat([x, short_cut], axis=1)
-        x = self.double_conv(x)
-        return x
-
-
-class ConvBlock(nn.Layer):
-    def __init__(self, ch_in, ch_out):
-        super(ConvBlock, self).__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2D(ch_in, ch_out, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2D(ch_out), nn.ReLU(),
-            nn.Conv2D(ch_out, ch_out, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2D(ch_out), nn.ReLU())
-
-    def forward(self, x):
-        return self.conv(x)
+        

@@ -1,0 +1,6 @@
+021-04-09 18:10:08 [INFO]      [EVAL] #Images=21 mIoU=0.8933 Acc=0.9444 Kappa=0.8872
+2021-04-09 18:10:08 [INFO]      [EVAL] Class IoU:
+[0.8815 0.9051]
+2021-04-09 18:10:08 [INFO]      [EVAL] Class Acc:
+[0.9338 0.9528]
+2021-04-09 18:10:12 [INFO]      [EVAL] The model with the best validation mIoU (0.8982) was saved at iter 6000.

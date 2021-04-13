@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-01-12 15:26:14
 LastEditors: TJUZQC
-LastEditTime: 2021-03-18 13:37:47
+LastEditTime: 2021-04-09 21:53:16
 Description: None
 '''
 import paddle
@@ -12,7 +12,7 @@ import paddle.nn.functional as F
 from paddleseg.models.layers import SyncBatchNorm, ConvBNReLU, ConvBN
 
 class HSBlock(nn.Layer):
-    def __init__(self, in_channels: int, split: int, kernel_size:int=3, stride: int = 1, padding:int=0) -> None:
+    def __init__(self, in_channels: int, split: int, kernel_size:int=3, stride: int = 1, padding:int=1) -> None:
         super(HSBlock, self).__init__()
         self.in_channels = in_channels
         self.channels = in_channels*split
@@ -39,7 +39,6 @@ class HSBlock(nn.Layer):
             retfeature = paddle.concat([retfeature, x1], axis=1)
             last_split = x2
         retfeature = paddle.concat([retfeature, last_split], axis=1)
-        del last_split
         return retfeature
 
     def _split(self, x):
@@ -62,7 +61,7 @@ class HSBlockBNReLU(nn.Layer):
 
 
 class HSBottleNeck(nn.Layer):
-    def __init__(self, in_channels: int, out_channels: int, split: int = 5, kernel_size:int=3, stride: int = 1, padding:int=0) -> None:
+    def __init__(self, in_channels: int, out_channels: int, split: int = 5, kernel_size:int=3, stride: int = 1, padding:int=1) -> None:
         super(HSBottleNeck, self).__init__()
         self.w = max(2**(split-2), 1)
         self.residual_function = nn.Sequential(

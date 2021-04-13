@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+'''
+Author: TJUZQC
+Date: 2021-01-13 01:01:38
+LastEditors: TJUZQC
+LastEditTime: 2021-04-09 14:46:39
+Description: None
+'''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,3 +24,4 @@ from .hrnet import *
 from .resnet_vd import *
 from .xception_deeplab import *
 from .mobilenetv3 import *
+from .swintransformer import SwinTransformer,swin_t

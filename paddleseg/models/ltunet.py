@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-03-31 10:27:53
 LastEditors: TJUZQC
-LastEditTime: 2021-04-06 16:28:57
+LastEditTime: 2021-04-09 00:30:28
 Description: None
 '''
 from typing import Iterable
@@ -90,10 +90,8 @@ class Decoder(nn.Layer):
         ])
 
     def forward(self, x, short_cuts):
-        print("input size:", x.shape)
         for i in range(len(short_cuts)):
             x = self.up_sample_list[i](x, short_cuts[-(i + 1)])
-            print("up sample:", x.shape)
         return x
 
 

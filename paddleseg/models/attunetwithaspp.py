@@ -74,7 +74,6 @@ class ASPPAttentionUNet(nn.Layer):
 
     def forward(self, x):
         x5, (x1, x2, x3, x4) = self.encoder(x)
-        x5 = self.aspp(x5)
         d5 = self.up5(x5)
         x4 = self.att5(g=d5, x=x4)
         d5 = paddle.concat([x4, d5], axis=1)

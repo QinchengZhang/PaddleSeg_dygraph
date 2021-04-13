@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-11 11:52:47
 LastEditors: TJUZQC
-LastEditTime: 2020-12-16 12:44:48
+LastEditTime: 2021-04-09 23:04:24
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -30,75 +30,138 @@ from paddleseg.models import layers
 
 
 @manager.MODELS.add_component
-class HS_Att_UNet(nn.Layer):
-    # TODO
+class HSAttentionUNet(nn.Layer):
     """
-    The UNet implementation based on PaddlePaddle.
+    The Attention-UNet implementation based on PaddlePaddle.
+    As mentioned in the original paper, author proposes a novel attention gate (AG)
+    that automatically learns to focus on target structures of varying shapes and sizes.
+    Models trained with AGs implicitly learn to suppress irrelevant regions in an input image while
+    highlighting salient features useful for a specific task.
 
     The original article refers to
-    Olaf Ronneberger, et, al. "U-Net: Convolutional Networks for Biomedical Image Segmentation"
-    (https://arxiv.org/abs/1505.04597).
+    Oktay, O, et, al. "Attention u-net: Learning where to look for the pancreas."
+    (https://arxiv.org/pdf/1804.03999.pdf).
 
     Args:
         num_classes (int): The unique number of target classes.
-        align_corners (bool): An argument of F.interpolate. It should be set to False when the output size of feature
-            is even, e.g. 1024x512, otherwise it is True, e.g. 769x769.  Default: False.
-        use_deconv (bool, optional): A bool value indicates whether using deconvolution in upsampling.
-            If False, use resize_bilinear. Default: False.
-        pretrained (str, optional): The path or url of pretrained model for fine tuning. Default: None.
+        pretrained (str, optional): The path or url of pretrained model. Default: None.
     """
 
-    def __init__(self,
-                 num_classes,
-                 split=5,
-                 align_corners=False,
-                 use_deconv=False,
-                 pretrained=None):
-        super(HS_Att_UNet, self).__init__()
+    def __init__(self, num_classes, pretrained=None):
+        super().__init__()
+        n_channels = 3
+        self.encoder = Encoder(n_channels, [64, 128, 256, 512])
+        filters = [64, 128, 256, 512, 1024]
+        self.up5 = UpConv(ch_in=filters[4], ch_out=filters[3])
+        self.att5 = AttentionBlock(
+            F_g=filters[3], F_l=filters[3], F_out=filters[2])
+        self.up_conv5 = ConvBlock(ch_in=filters[4], ch_out=filters[3])
 
-        self.encode = Encoder(split=split)
-        self.decode = Decoder(
-            align_corners, use_deconv=use_deconv, split=split)
-        self.cls = self.conv = nn.Conv2D(
-            in_channels=64,
-            out_channels=num_classes,
-            kernel_size=3,
-            stride=1,
-            padding=1)
+        self.up4 = UpConv(ch_in=filters[3], ch_out=filters[2])
+        self.att4 = AttentionBlock(
+            F_g=filters[2], F_l=filters[2], F_out=filters[1])
+        self.up_conv4 = ConvBlock(ch_in=filters[3], ch_out=filters[2])
 
+        self.up3 = UpConv(ch_in=filters[2], ch_out=filters[1])
+        self.att3 = AttentionBlock(
+            F_g=filters[1], F_l=filters[1], F_out=filters[0])
+        self.up_conv3 = ConvBlock(ch_in=filters[2], ch_out=filters[1])
+
+        self.up2 = UpConv(ch_in=filters[1], ch_out=filters[0])
+        self.att2 = AttentionBlock(
+            F_g=filters[0], F_l=filters[0], F_out=filters[0] // 2)
+        self.up_conv2 = ConvBlock(ch_in=filters[1], ch_out=filters[0])
+
+        self.conv_1x1 = nn.Conv2D(
+            filters[0], num_classes, kernel_size=1, stride=1, padding=0)
         self.pretrained = pretrained
         self.init_weight()
 
     def forward(self, x):
-        logit_list = []
-        x, short_cuts = self.encode(x)
-        x = self.decode(x, short_cuts)
-        logit = self.cls(x)
-        logit_list.append(logit)
+        x5, (x1, x2, x3, x4) = self.encoder(x)
+        d5 = self.up5(x5)
+        x4 = self.att5(g=d5, x=x4)
+        d5 = paddle.concat([x4, d5], axis=1)
+        d5 = self.up_conv5(d5)
+
+        d4 = self.up4(d5)
+        x3 = self.att4(g=d4, x=x3)
+        d4 = paddle.concat((x3, d4), axis=1)
+        d4 = self.up_conv4(d4)
+
+        d3 = self.up3(d4)
+        x2 = self.att3(g=d3, x=x2)
+        d3 = paddle.concat((x2, d3), axis=1)
+        d3 = self.up_conv3(d3)
+
+        d2 = self.up2(d3)
+        x1 = self.att2(g=d2, x=x1)
+        d2 = paddle.concat((x1, d2), axis=1)
+        d2 = self.up_conv2(d2)
+
+        logit = self.conv_1x1(d2)
+        logit_list = [logit]
         return logit_list
 
     def init_weight(self):
         if self.pretrained is not None:
             utils.load_entire_model(self, self.pretrained)
+class AttentionBlock(nn.Layer):
+    def __init__(self, F_g, F_l, F_out):
+        super().__init__()
+        self.W_g = nn.Sequential(
+            nn.Conv2D(F_g, F_out, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm2D(F_out))
+
+        self.W_x = nn.Sequential(
+            nn.Conv2D(F_l, F_out, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm2D(F_out))
+
+        self.psi = nn.Sequential(
+            nn.Conv2D(F_out, 1, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm2D(1), nn.Sigmoid())
+
+        self.relu = nn.ReLU()
+
+    def forward(self, g, x):
+        g1 = self.W_g(g)
+        x1 = self.W_x(x)
+        psi = self.relu(g1 + x1)
+        psi = self.psi(psi)
+        res = x * psi
+        return res
+
+
+class UpConv(nn.Layer):
+    def __init__(self, ch_in, ch_out):
+        super().__init__()
+        self.up = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode="bilinear"),
+            layers.HSBottleNeck(ch_in, ch_out, kernel_size=3, stride=1, padding=1),
+            nn.ReLU())
+
+    def forward(self, x):
+        return self.up(x)
 
 
 class Encoder(nn.Layer):
-    def __init__(self, split: int = 5):
+    def __init__(self, input_channels, filters):
         super().__init__()
-
         self.double_conv = nn.Sequential(
-            layers.HSBottleNeck(3, 64, split), layers.HSBottleNeck(64, 64, split))
-        down_channels = [[64, 128], [128, 256], [256, 512], [512, 512]]
+            layers.HSBottleNeck(input_channels, 64, kernel_size=3),
+            layers.HSBottleNeck(64, 64, kernel_size=3),
+        )
+        down_channels = filters
         self.down_sample_list = nn.LayerList([
-            self.down_sampling(channel[0], channel[1], split)
+            self.down_sampling(channel, channel * 2)
             for channel in down_channels
         ])
 
-    def down_sampling(self, in_channels, out_channels, split=5):
+    def down_sampling(self, in_channels, out_channels):
         modules = []
         modules.append(nn.MaxPool2D(kernel_size=2, stride=2))
-        modules.append(layers.HSBottleNeck(in_channels, out_channels, split))
-        modules.append(layers.HSBottleNeck(out_channels, out_channels, split))
+        modules.append(layers.HSBottleNeck(in_channels, out_channels, kernel_size=3))
+        modules.append(layers.HSBottleNeck(out_channels, out_channels, kernel_size=3))
         return nn.Sequential(*modules)
 
     def forward(self, x):
@@ -110,86 +173,20 @@ class Encoder(nn.Layer):
         return x, short_cuts
 
 
-class Decoder(nn.Layer):
-    def __init__(self, align_corners, use_deconv=False, split=5):
-        super().__init__()
+class ConvBlock(nn.Layer):
+    def __init__(self, ch_in, ch_out):
+        super(ConvBlock, self).__init__()
+        # self.conv = nn.Sequential(
+        #     nn.Conv2D(ch_in, ch_out, kernel_size=3, stride=1, padding=1),
+        #     nn.BatchNorm2D(ch_out), nn.ReLU(),
+        #     nn.Conv2D(ch_out, ch_out, kernel_size=3, stride=1, padding=1),
+        #     nn.BatchNorm2D(ch_out), nn.ReLU())
+        self.conv = nn.Sequential(
+            layers.HSBottleNeck(ch_in, ch_out, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            layers.HSBottleNeck(ch_out, ch_out, kernel_size=3, stride=1, padding=1),
+            nn.ReLU()
+        )
 
-        up_channels = [[512, 256], [256, 128], [128, 64], [64, 64]]
-        self.up_sample_list = nn.LayerList([
-            UpSampling(channel[0], channel[1],
-                       align_corners, use_deconv, split)
-            for channel in up_channels
-        ])
-
-    def forward(self, x, short_cuts):
-        low_f = None
-        for i in range(len(short_cuts)):
-            x, low_f = self.up_sample_list[i](x, short_cuts[-(i + 1)], low_f)
-        return x
-
-
-class UpSampling(nn.Layer):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 align_corners,
-                 use_deconv=False,
-                 split=5):
-        super().__init__()
-
-        self.align_corners = align_corners
-
-        self.use_deconv = use_deconv
-        if self.use_deconv:
-            self.deconv = nn.Conv2DTranspose(
-                in_channels,
-                out_channels,
-                kernel_size=2,
-                stride=2,
-                padding=0)
-            self.deconv_att = nn.Conv2DTranspose(
-                in_channels,
-                out_channels,
-                kernel_size=2,
-                stride=2,
-                padding=0)
-            in_channels = in_channels + out_channels
-            self.attention_gate = layers.AttentionBlock(out_channels , in_channels, out_channels//2)
-
-        else:
-            self.attention_gate = layers.AttentionBlock(in_channels , in_channels, out_channels//2)
-            self.conv = layers.ConvBN(in_channels*2, in_channels, kernel_size=1)
-            in_channels *= 2
-            
-        self.double_conv = nn.Sequential(
-            # layers.ConvBNReLU(in_channels, out_channels, 3),
-            # layers.ConvBNReLU(out_channels, out_channels, 3))
-            layers.HSBottleNeck(in_channels, out_channels, split),
-            layers.HSBottleNeck(out_channels, out_channels, split))
-
-    def forward(self, x, short_cut, low_f=None):
-        if self.use_deconv:
-            x = self.deconv(x)
-            if low_f is not None:
-                low_f = self.deconv_att(low_f)
-        else:
-            x = F.interpolate(
-                x,
-                short_cut.shape[2:],
-                mode='bilinear',
-                align_corners=self.align_corners)
-            if low_f is not None:
-                low_f = F.interpolate(
-                        low_f,
-                        short_cut.shape[2:],
-                        mode='bilinear',
-                        align_corners=self.align_corners)
-                low_f = self.conv(low_f)
-                
-        # print(x.shape, short_cut.shape, low_f.shape if low_f is not None else '')
-        f = self.attention_gate(
-            x, short_cut)*low_f if low_f is not None else self.attention_gate(x, short_cut)
-        x = paddle.concat([x, f], axis=1)
-        x = self.double_conv(x)
-        # print(f.shape)
-        return x, f
+    def forward(self, x):
+        return self.conv(x)

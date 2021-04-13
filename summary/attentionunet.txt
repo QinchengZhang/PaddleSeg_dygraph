@@ -1,0 +1,7 @@
+21/21 [==============================] - 1s 35ms/step - batch_cost: 0.0325 - reader cost: 0.0033   
+2021-04-09 19:29:58 [INFO]      [EVAL] #Images=21 mIoU=0.8863 Acc=0.9404 Kappa=0.8794
+2021-04-09 19:29:58 [INFO]      [EVAL] Class IoU:
+[0.8743 0.8983]
+2021-04-09 19:29:58 [INFO]      [EVAL] Class Acc:
+[0.9253 0.9528]
+2021-04-09 19:30:02 [INFO]      [EVAL] The model with the best validation mIoU (0.8905) was saved at iter 5000.

@@ -181,7 +181,7 @@ def train(model,
             if (iter % save_interval == 0
                     or iter == iters) and (val_dataset is not None):
                 num_workers = 1 if num_workers > 0 else 0
-                mean_iou, acc = evaluate(
+                mean_iou, acc, kappa = evaluate(
                     model, val_dataset, num_workers=num_workers)
                 model.train()
 
@@ -214,6 +214,7 @@ def train(model,
                     if use_vdl:
                         log_writer.add_scalar('Evaluate/mIoU', mean_iou, iter)
                         log_writer.add_scalar('Evaluate/Acc', acc, iter)
+                        log_writer.add_scalar('Evaluate/Kappa', kappa, iter)
             timer.restart()
 
     # Sleep for half a second to let dataloader release resources.

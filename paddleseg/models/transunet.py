@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 13:50:36
 LastEditors: TJUZQC
-LastEditTime: 2021-01-11 14:31:58
+LastEditTime: 2021-04-09 23:50:15
 Description: None
 '''
 from typing import Iterable
@@ -11,9 +11,9 @@ from typing import Iterable
 import paddle
 import paddle.nn as nn
 from paddleseg.cvlibs import manager
-from paddleseg.models.hsunet import Encoder
+from paddleseg.models.unet import Encoder
 from paddleseg.models.layers import CVTransformer as Transformer
-from paddleseg.models.layers import HSBottleNeck, PositionEmbeddingLearned
+from paddleseg.models.layers import ConvBNReLU, PositionEmbeddingLearned
 from paddle.nn import functional as F
 
 
@@ -33,7 +33,8 @@ class TransUNet(nn.Layer):
                  transformer_attention_heads: int = 8,
                  transformer_activation: str = 'leakyrelu',
                  segmentation_attention_heads: int = 8,
-                 segmentation_head_final_activation: str = 'sigmoid') -> None:
+                #  segmentation_head_final_activation: str = 'sigmoid',
+                 resample_mode='bilinear',) -> None:
         """
         Constructor method
         :param num_classes: (int) Number of classes in the dataset
@@ -46,13 +47,14 @@ class TransUNet(nn.Layer):
         :param transformer_activation: (Type) Type of activation function to be utilized in the transformer module
         :param segmentation_attention_heads: (int) Number of attention heads in the 2d multi head attention module
         :param segmentation_head_final_activation: (Type) Type of activation function to be applied to the output pred
+        :param resample_mode: (str) Type of resample mode
         """
         # Call super constructor
         super(TransUNet, self).__init__()
         # Init backbone
-        self.encoder = Encoder(split=5)
+        self.encoder = Encoder()
         # Init convolution mapping to match transformer dims
-        self.convolution_mapping = HSBottleNeck(in_channels=self.encoder.down_channels[-1][-1], out_channels=hidden_features)
+        self.convolution_mapping = ConvBNReLU(in_channels=self.encoder.down_channels[-1][-1], out_channels=hidden_features, kernel_size=3)
         # Init query positions
         self.query_positions = self.create_parameter(
             [number_of_query_positions, hidden_features], dtype='float32')
@@ -63,9 +65,10 @@ class TransUNet(nn.Layer):
         self.transformer_activation = _get_activation(transformer_activation)
 
         # Init segmentation final activation
-        self.segmentation_final_activation = _get_activation(segmentation_head_final_activation)
-        self.segmentation_final_activation = self.segmentation_final_activation(axis=1) if isinstance(
-            self.segmentation_final_activation(), nn.Softmax) else self.segmentation_final_activation()
+        # self.segmentation_final_activation = _get_activation(segmentation_head_final_activation)
+        # self.segmentation_final_activation = self.segmentation_final_activation(axis=1) if isinstance(
+        #     self.segmentation_final_activation(), nn.Softmax) else self.segmentation_final_activation()
+        pass
 
 
         # Init transformer
@@ -80,9 +83,14 @@ class TransUNet(nn.Layer):
             num_heads=segmentation_attention_heads,
             dropout=dropout)
         # Init segmentation head
-        self.decoder = AttentionDecoder(align_corners=False, use_deconv=True, split=5)
+        self.decoder = AttentionDecoder(align_corners=False, mode=resample_mode)
         # Init classification layer
-        self.cls = HSBottleNeck(in_channels=64, out_channels=num_classes)
+        self.cls = nn.Conv2D(
+            in_channels=64,
+            out_channels=num_classes,
+            kernel_size=3,
+            stride=1,
+            padding=1)
         
 
     def get_parameters(self, lr_main: float = 1e-04, lr_backbone: float = 1e-05) -> Iterable:
@@ -133,7 +141,7 @@ class TransUNet(nn.Layer):
         decoded_features = self.decoder(features_encoded, feature_list)
         instance_segmentation_prediction = self.cls(decoded_features)
 
-        return self.segmentation_final_activation(instance_segmentation_prediction)
+        return instance_segmentation_prediction
 
 def _get_activation(activation:str):
     activation = activation.lower()
@@ -165,12 +173,12 @@ def _get_activation(activation:str):
     return switch.get(activation, None)
 
 class AttentionDecoder(nn.Layer):
-    def __init__(self, align_corners, use_deconv=False, split=5):
+    def __init__(self, align_corners, mode='bilinear'):
         super(AttentionDecoder, self).__init__()
 
         self.up_channels = [[512, 256], [256, 128], [128, 64], [64, 64]]
         self.up_sample_list = nn.LayerList([
-            UpSampling(channel[0], channel[1], align_corners, use_deconv, split)
+            UpSampling(channel[0], channel[1], align_corners, mode=mode)
             for channel in self.up_channels
         ])
         
@@ -186,37 +194,18 @@ class UpSampling(nn.Layer):
                  in_channels,
                  out_channels,
                  align_corners,
-                 use_deconv=False,
-                 split=5):
+                 mode):
         super().__init__()
 
         self.align_corners = align_corners
 
-        self.use_deconv = use_deconv
-        if self.use_deconv:
-            self.deconv = nn.Conv2DTranspose(
-                in_channels,
-                out_channels // 2,
-                kernel_size=2,
-                stride=2,
-                padding=0)
-            in_channels = in_channels + out_channels // 2
-        else:
-            in_channels *= 2
-
+        self.upsample = nn.Upsample(scale_factor=2, mode=mode, align_corners=align_corners)
         self.double_conv = nn.Sequential(
-            HSBottleNeck(in_channels, out_channels, split),
-            HSBottleNeck(out_channels, out_channels, split))
+            ConvBNReLU(in_channels+in_channels, out_channels, 3),
+            ConvBNReLU(out_channels, out_channels, 3))
 
     def forward(self, x, short_cut):
-        if self.use_deconv:
-            x = self.deconv(x)
-        else:
-            x = F.interpolate(
-                x,
-                short_cut.shape[2:],
-                mode='bilinear',
-                align_corners=self.align_corners)
+        x = self.upsample(x)
         x = paddle.concat([x, short_cut], axis=1)
         x = self.double_conv(x)
         return x

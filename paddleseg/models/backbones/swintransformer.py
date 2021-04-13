@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 '''
 Author: TJUZQC
-Date: 2021-04-06 09:54:12
+Date: 2021-04-09 14:31:09
 LastEditors: TJUZQC
-LastEditTime: 2021-04-09 00:30:21
+LastEditTime: 2021-04-09 14:56:22
 Description: None
 '''
 from typing import Optional
@@ -13,7 +13,7 @@ import paddle
 from paddle import Tensor, nn
 from paddle.fluid.layers.nn import shape
 from paddleseg.utils.einops import rearrange
-from paddleseg.utils.einops.layers.paddle import Rearrange
+from paddleseg.cvlibs import manager
 
 
 class CyclicShift(nn.Layer):
@@ -197,6 +197,7 @@ class SwinTransformer(nn.Layer):
                  downscaling_factors=(2, 2, 2, 2), relative_pos_embedding=True):
         super().__init__()
 
+        self.feat_channels = [hidden_dim*8]
         self.stage1 = StageModule(in_channels=channels, hidden_dimension=hidden_dim, layers=layers[0],
                                   downscaling_factor=downscaling_factors[0], num_heads=heads[0], head_dim=head_dim,
                                   window_size=window_size, relative_pos_embedding=relative_pos_embedding)
@@ -219,7 +220,8 @@ class SwinTransformer(nn.Layer):
         x = self.stage3(x)
         short_cuts.append(x)
         x = self.stage4(x)
-        return x, short_cuts
-    
+        return [x]
+
+@manager.BACKBONES.add_component
 def swin_t(hidden_dim=128, layers=(2, 2, 6, 2), heads=(3, 6, 12, 24), **kwargs):
     return SwinTransformer(hidden_dim=hidden_dim, layers=layers, heads=heads, **kwargs)
