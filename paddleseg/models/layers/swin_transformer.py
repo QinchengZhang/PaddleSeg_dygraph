@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-04-06 09:54:12
 LastEditors: TJUZQC
-LastEditTime: 2021-04-20 16:08:38
+LastEditTime: 2021-04-20 16:30:24
 Description: None
 '''
 import re
@@ -11,11 +11,11 @@ from typing import Optional
 
 import numpy as np
 import paddle
+import paddle.nn.functional as F
 from paddle import Tensor, nn
 from paddle.fluid.layers.nn import shape
 from paddleseg.utils.einops import rearrange
 from paddleseg.utils.einops.layers.paddle import Rearrange
-import paddle.nn.functional as F
 
 
 class Mlp(nn.Layer):
