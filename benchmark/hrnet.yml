@@ -26,9 +26,9 @@ val_dataset:
 model:
   type: FCN
   backbone:
-    type: HRNet_W18
-  num_classes: 19
-  backbone_indices: [-1]
+    type: SwinTransformer
+  num_classes: 2
+  backbone_indices: [96, 192, 384, 768]
 
 optimizer:
   type: sgd
@@ -43,6 +43,5 @@ learning_rate:
 
 loss:
   types:
-    - type: CrossEntropyLoss
-      ignore_index: 255
+    - type: CE_DSC_Loss
   coef: [1]

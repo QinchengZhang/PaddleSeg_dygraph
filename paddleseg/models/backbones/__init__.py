@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-01-13 01:01:38
 LastEditors: TJUZQC
-LastEditTime: 2021-04-09 14:46:39
+LastEditTime: 2021-04-21 17:00:27
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -24,4 +24,4 @@ from .hrnet import *
 from .resnet_vd import *
 from .xception_deeplab import *
 from .mobilenetv3 import *
-from .swintransformer import SwinTransformer,swin_t
+from .swintransformer import SwinTransformer

@@ -163,3 +163,9 @@ class AuxLayer(nn.Layer):
         x = self.dropout(x)
         x = self.conv(x)
         return x
+
+class Identity(nn.Layer):
+    def __init__(self,*args, **kwargs):
+        super().__init__()
+    def forward(self, x):
+        return x

@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 12:36:25
 LastEditors: TJUZQC
-LastEditTime: 2021-04-06 09:54:20
+LastEditTime: 2021-04-22 14:18:27
 Description: None
 '''
 from typing import Optional
@@ -298,3 +298,4 @@ def build_cvtransformer(args):
         return_intermediate_dec=True,
         initializer=args.initializer,
     )
+

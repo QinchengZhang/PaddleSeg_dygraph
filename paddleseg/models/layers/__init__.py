@@ -27,3 +27,4 @@ from .attention import AttentionBlock
 from .hierarchicalsplit import *
 from .transformer import *
 from .swin_transformer import *
+from .ConvTransformer import *
