@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-03-04 09:37:34
 LastEditors: TJUZQC
-LastEditTime: 2021-04-21 13:30:49
+LastEditTime: 2021-04-22 17:12:10
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -47,3 +47,4 @@ from .transattunet import TransAttentionUNet
 from .ltunet import SwinTransUNet
 from .attunetwithaspp import ASPPAttentionUNet
 from .upernet import UperNet, UPerHead
+from .convtransunet import ConvTransUNet

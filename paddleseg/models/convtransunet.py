@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-04-22 15:55:19
 LastEditors: TJUZQC
-LastEditTime: 2021-04-22 16:32:04
+LastEditTime: 2021-04-23 14:20:08
 Description: None
 '''
 from re import S
@@ -66,7 +66,7 @@ class ConvTransUNet(nn.Layer):
 
 
 class Encoder(nn.Layer):
-    def __init__(self, image_size, in_channels, heads=[1, 3, 6], depth=[1, 2, 10], dropout=0., emb_dropout=0., scale_axis=4):
+    def __init__(self, image_size, in_channels, heads=[1, 3, 6], depth=[1, 2, 10], dropout=0., emb_dropout=0., scale_axis=2):
         super().__init__()
 
         self.double_conv = nn.Sequential(
@@ -75,8 +75,8 @@ class Encoder(nn.Layer):
         down_scales = [1,2,3]
         self.conv_embed_list = nn.LayerList([
             nn.Sequential(
-                nn.Conv2D(channel[0], channel[1], 3, 1, 1),
                 nn.MaxPool2D(2),
+                nn.Conv2D(channel[0], channel[1], 3, 1, 1),
                 Rearrange('b c h w -> b (h w) c',
                           h=image_size//(2**(i)), w=image_size//(2**(i))),
                 nn.LayerNorm(channel[1])
@@ -89,7 +89,10 @@ class Encoder(nn.Layer):
             Rearrange('b (h w) c -> b c h w', h = image_size//(2**i), w = image_size//(2**i))
         ) for i, channel, depth, heads in map(lambda i, a, b, c: (i, a, b, c), down_scales, down_channels, depth, heads)
         ])
-        self.post_conv = layers.ConvBNReLU(512, 512, 3)
+        self.post_conv_pool = nn.Sequential(
+            nn.MaxPool2D(2),
+            layers.ConvBNReLU(512, 512, 3)
+        )
 
     def forward(self, x):
         short_cuts = []
@@ -99,7 +102,7 @@ class Encoder(nn.Layer):
             x = self.conv_embed_list[i](x)
             x = self.transformer_list[i](x)
         short_cuts.append(x)
-        x = self.post_conv(x)
+        x = self.post_conv_pool(x)
         return x, short_cuts
 
 

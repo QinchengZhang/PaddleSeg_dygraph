@@ -1,4 +1,4 @@
-batch_size: 4
+batch_size: 1
 iters: 100000
 
 train_dataset:
@@ -20,11 +20,10 @@ val_dataset:
   mode: val
 
 model:
-  type: OCRNet
-  backbone:
-    type: HRNet_W48
-    pretrained: https://bj.bcebos.com/paddleseg/dygraph/hrnet_w18_ssld.tar.gz
-  backbone_indices: [0]
+  type: ConvTransUNet
+  image_size: 256
+  in_channels: 3 
+  num_classes: 2
 
 optimizer:
   type: sgd
@@ -40,4 +39,4 @@ learning_rate:
 loss:
   types:
     - type: CE_DSC_Loss
-  coef: [1, 1]
+  coef: [1]
