@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-04-22 14:20:33
 LastEditors: TJUZQC
-LastEditTime: 2021-04-23 14:19:04
+LastEditTime: 2021-04-25 18:50:42
 Description: None
 '''
 from typing import Optional
@@ -113,12 +113,15 @@ class ConvAttention(nn.Layer):
             v = paddle.concat((cls_token, v), axis=2)
             k = paddle.concat((cls_token, k), axis=2)
 
+        # dots = np.einsum('b h i d, b h j d -> b h i j', q.numpy(), k.numpy()) * self.scale
+        # dots = paddle.to_tensor(dots)
 
-        dots = paddle.to_tensor(np.einsum('b h i d, b h j d -> b h i j', q.numpy(), k.numpy()) * self.scale)
+        dots = paddle.matmul(q, rearrange(k, "b h j d -> b h d j")) * self.scale
 
         attn = F.softmax(dots, axis=-1)
 
-        out = paddle.to_tensor(np.einsum('b h i j, b h j d -> b h i d', attn.numpy(), v.numpy()))
+        # out = paddle.to_tensor(np.einsum('b h i j, b h j d -> b h i d', attn.numpy(), v.numpy()))
+        out = paddle.matmul(attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
         out =  self.to_out(out)
         return out
