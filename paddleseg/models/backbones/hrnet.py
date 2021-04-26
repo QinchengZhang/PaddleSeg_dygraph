@@ -153,34 +153,36 @@ class HRNet(nn.Layer):
             align_corners=align_corners)
         self.init_weight()
 
-    def forward(self, x):
-        conv1 = self.conv_layer1_1(x)
-        conv2 = self.conv_layer1_2(conv1)
+    def forward(self, x): # b c w h
+        conv1 = self.conv_layer1_1(x) # b 64 w/2 h/2
+        conv2 = self.conv_layer1_2(conv1) # b 64 w/4 h/4
 
-        la1 = self.la1(conv2)
 
-        tr1 = self.tr1([la1])
-        st2 = self.st2(tr1)
+        la1 = self.la1(conv2) # b 256 w/4 h/4
 
-        tr2 = self.tr2(st2)
-        st3 = self.st3(tr2)
+        tr1 = self.tr1([la1]) # [[b 64 w/4 h/4], [b 128 w/8 h/8]]
+        st2 = self.st2(tr1) # [[b 64 w/4 h/4], [b 128 w/8 h/8]]
 
-        tr3 = self.tr3(st3)
-        st4 = self.st4(tr3)
+        tr2 = self.tr2(st2) # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16]]
+        st3 = self.st3(tr2) # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16]]
+
+        tr3 = self.tr3(st3) # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16], [b 512 w/32 h/32]]
+        st4 = self.st4(tr3) # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16], [b 512 w/32 h/32]]
 
         x0_h, x0_w = st4[0].shape[2:]
         x1 = F.interpolate(
             st4[1], (x0_h, x0_w),
             mode='bilinear',
-            align_corners=self.align_corners)
+            align_corners=self.align_corners) # b 128 w/4 h/4
         x2 = F.interpolate(
             st4[2], (x0_h, x0_w),
             mode='bilinear',
-            align_corners=self.align_corners)
+            align_corners=self.align_corners) # b 256 w/4 h/4
         x3 = F.interpolate(
             st4[3], (x0_h, x0_w),
             mode='bilinear',
-            align_corners=self.align_corners)
+            align_corners=self.align_corners) # b 512 w/4 h/4
+        
         x = paddle.concat([st4[0], x1, x2, x3], axis=1)
 
         return [x]

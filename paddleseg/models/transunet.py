@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2020-12-29 13:50:36
 LastEditors: TJUZQC
-LastEditTime: 2021-04-09 23:50:15
+LastEditTime: 2021-04-25 21:46:15
 Description: None
 '''
 from typing import Iterable
@@ -31,9 +31,8 @@ class TransUNet(nn.Layer):
                  num_decoder_layers: int = 6,
                  dropout: float = 0.1,
                  transformer_attention_heads: int = 8,
-                 transformer_activation: str = 'leakyrelu',
+                 transformer_activation: str = 'gelu',
                  segmentation_attention_heads: int = 8,
-                #  segmentation_head_final_activation: str = 'sigmoid',
                  resample_mode='bilinear',) -> None:
         """
         Constructor method
@@ -65,9 +64,6 @@ class TransUNet(nn.Layer):
         self.transformer_activation = _get_activation(transformer_activation)
 
         # Init segmentation final activation
-        # self.segmentation_final_activation = _get_activation(segmentation_head_final_activation)
-        # self.segmentation_final_activation = self.segmentation_final_activation(axis=1) if isinstance(
-        #     self.segmentation_final_activation(), nn.Softmax) else self.segmentation_final_activation()
         pass
 
 
@@ -75,7 +71,8 @@ class TransUNet(nn.Layer):
         self.transformer = Transformer(d_model=hidden_features, nhead=transformer_attention_heads,
                                        num_encoder_layers=num_encoder_layers, num_decoder_layers=num_decoder_layers,
                                        dropout=dropout, dim_feedforward=4 * hidden_features,
-                                       activation=self.transformer_activation)
+                                       activation=self.transformer_activation,
+                                       initializer=nn.initializer.TruncatedNormal())
 
         # Init segmentation attention head
         self.segmentation_attention_head = nn.MultiHeadAttention(
@@ -83,7 +80,7 @@ class TransUNet(nn.Layer):
             num_heads=segmentation_attention_heads,
             dropout=dropout)
         # Init segmentation head
-        self.decoder = AttentionDecoder(align_corners=False, mode=resample_mode)
+        self.decoder = Decoder(align_corners=False, mode=resample_mode)
         # Init classification layer
         self.cls = nn.Conv2D(
             in_channels=64,
@@ -141,7 +138,7 @@ class TransUNet(nn.Layer):
         decoded_features = self.decoder(features_encoded, feature_list)
         instance_segmentation_prediction = self.cls(decoded_features)
 
-        return instance_segmentation_prediction
+        return [instance_segmentation_prediction]
 
 def _get_activation(activation:str):
     activation = activation.lower()
@@ -172,9 +169,9 @@ def _get_activation(activation:str):
     }
     return switch.get(activation, None)
 
-class AttentionDecoder(nn.Layer):
+class Decoder(nn.Layer):
     def __init__(self, align_corners, mode='bilinear'):
-        super(AttentionDecoder, self).__init__()
+        super(Decoder, self).__init__()
 
         self.up_channels = [[512, 256], [256, 128], [128, 64], [64, 64]]
         self.up_sample_list = nn.LayerList([

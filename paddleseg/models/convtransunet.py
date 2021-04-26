@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-04-22 15:55:19
 LastEditors: TJUZQC
-LastEditTime: 2021-04-23 14:20:08
+LastEditTime: 2021-04-25 19:01:35
 Description: None
 '''
 from re import S
@@ -66,7 +66,7 @@ class ConvTransUNet(nn.Layer):
 
 
 class Encoder(nn.Layer):
-    def __init__(self, image_size, in_channels, heads=[1, 3, 6], depth=[1, 2, 10], dropout=0., emb_dropout=0., scale_axis=2):
+    def __init__(self, image_size, in_channels, heads=[1, 3, 6], depth=[1, 2, 4], dropout=0., emb_dropout=0., scale_axis=2):
         super().__init__()
 
         self.double_conv = nn.Sequential(

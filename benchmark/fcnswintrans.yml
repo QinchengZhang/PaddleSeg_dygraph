@@ -1,4 +1,4 @@
-batch_size: 1
+batch_size: 6
 iters: 100000
 
 train_dataset:
@@ -20,10 +20,7 @@ val_dataset:
   mode: val
 
 model:
-  type: ConvTransUNet
-  image_size: 256
-  in_channels: 3 
-  num_classes: 2
+  type: HRUNet
 
 optimizer:
   type: sgd
