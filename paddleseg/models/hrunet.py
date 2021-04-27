@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-04-25 23:40:02
 LastEditors: TJUZQC
-LastEditTime: 2021-04-26 18:23:01
+LastEditTime: 2021-04-26 18:40:36
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -84,7 +84,7 @@ class HRUNet(nn.Layer):
 
 class Encoder(nn.Layer):
     def __init__(self,
-                 pretrained=None,
+                pretrained=None,
                 stage1_num_modules=1,
                 stage1_num_blocks=[4],
                 stage1_num_channels=[64],
@@ -97,8 +97,8 @@ class Encoder(nn.Layer):
                 stage4_num_modules=3,
                 stage4_num_blocks=[4, 4, 4, 4],
                 stage4_num_channels=[64, 128, 256, 512],
-                 has_se=False,
-                 align_corners=False):
+                has_se=False,
+                align_corners=False):
         super(Encoder, self).__init__()
         self.pretrained = pretrained
         self.stage1_num_modules = stage1_num_modules

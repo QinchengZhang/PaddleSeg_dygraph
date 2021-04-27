@@ -1,4 +1,4 @@
-batch_size: 6
+batch_size: 1
 iters: 100000
 
 train_dataset:

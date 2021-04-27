@@ -20,7 +20,7 @@ val_dataset:
   mode: val
 
 model:
-  type: TransAttentionUNet
+  type: AttentionUNet
   num_classes: 2
 
 optimizer:
