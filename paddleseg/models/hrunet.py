@@ -3,7 +3,7 @@
 Author: TJUZQC
 Date: 2021-04-25 23:40:02
 LastEditors: TJUZQC
-LastEditTime: 2021-04-26 18:40:36
+LastEditTime: 2021-04-28 16:14:23
 Description: None
 '''
 # Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
@@ -52,12 +52,18 @@ class HRUNet(nn.Layer):
 
     def __init__(self,
                  num_classes,
+                 stage_num_block = 2,
                  align_corners=False,
                  resample_mode='bilinear',
                  pretrained=None):
         super().__init__()
 
-        self.encode = Encoder()
+        self.encode = Encoder(
+            stage1_num_blocks= [stage_num_block],
+            stage2_num_blocks= [stage_num_block, stage_num_block],
+            stage3_num_blocks= [stage_num_block, stage_num_block, stage_num_block],
+            stage4_num_blocks= [stage_num_block, stage_num_block, stage_num_block, stage_num_block]
+        )
         self.decode = Decoder(align_corners, mode=resample_mode)
         self.cls = self.conv = nn.Conv2D(
             in_channels=64,
