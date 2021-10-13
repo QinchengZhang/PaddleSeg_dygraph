@@ -21,6 +21,7 @@ Description: None
 # limitations under the License.
 
 from .hrnet import *
+from .hs_hrnet import *
 from .resnet_vd import *
 from .xception_deeplab import *
 from .mobilenetv3 import *

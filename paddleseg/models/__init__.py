@@ -48,3 +48,4 @@ from .ltunet import SwinTransUNet
 from .attunetwithaspp import ASPPAttentionUNet
 from .convtransunet import ConvTransUNet
 from .hrunet import *
+from .hs_hrunet import *

@@ -1,4 +1,4 @@
-batch_size: 4
+batch_size: 1
 iters: 100000
 
 train_dataset:
@@ -20,7 +20,7 @@ val_dataset:
   mode: val
 
 model:
-  type: AttentionUNet
+  type: HS_HRUNet
   num_classes: 2
 
 optimizer:

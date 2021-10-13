@@ -11,8 +11,9 @@ import paddle.nn as nn
 import paddle.nn.functional as F
 from paddleseg.models.layers import SyncBatchNorm, ConvBNReLU, ConvBN
 
+
 class HSBlock(nn.Layer):
-    def __init__(self, in_channels: int, split: int, kernel_size:int=3, stride: int = 1, padding:int=1) -> None:
+    def __init__(self, in_channels: int, split: int, kernel_size: int = 3, stride: int = 1, padding: int = 1, **kwargs) -> None:
         super(HSBlock, self).__init__()
         self.in_channels = in_channels
         self.channels = in_channels*split
@@ -22,7 +23,7 @@ class HSBlock(nn.Layer):
             hc = int((2**(s)-1)/2**(s-1)*self.in_channels)
             self.ops_list.append(nn.Sequential(
                 nn.Conv2D(hc, hc, kernel_size=kernel_size,
-                          padding=padding, stride=stride),
+                          padding=padding, stride=stride, **kwargs),
             ))
 
     def forward(self, x):
@@ -47,9 +48,10 @@ class HSBlock(nn.Layer):
 
 
 class HSBlockBNReLU(nn.Layer):
-    def __init__(self, w: int, split: int, kernel_size:int=3, stride: int = 1, padding:int=0) -> None:
+    def __init__(self, w: int, split: int, kernel_size: int = 3, stride: int = 1, padding: int = 0, **kwargs) -> None:
         super(HSBlockBNReLU, self).__init__()
-        self._hsblock = HSBlock(w, split, kernel_size=kernel_size, stride=stride, padding=padding)
+        self._hsblock = HSBlock(
+            w, split, kernel_size=kernel_size, stride=stride, padding=padding, **kwargs)
         self._batch_norm = SyncBatchNorm(split*w)
         self.relu = nn.ReLU()
 
@@ -61,23 +63,47 @@ class HSBlockBNReLU(nn.Layer):
 
 
 class HSBottleNeck(nn.Layer):
-    def __init__(self, in_channels: int, out_channels: int, split: int = 5, kernel_size:int=3, stride: int = 1, padding:int=1) -> None:
+    def __init__(self, in_channels: int, out_channels: int, split: int = 5, kernel_size: int = 3, stride: int = 1, padding: int = 1, **kwargs) -> None:
         super(HSBottleNeck, self).__init__()
         self.w = max(2**(split-2), 1)
         self.residual_function = nn.Sequential(
             ConvBNReLU(in_channels, self.w*split,
-                       kernel_size=1, stride=stride),
-            HSBlockBNReLU(self.w, split, kernel_size=kernel_size, stride=stride, padding=padding),
+                       kernel_size=1, stride=stride, **kwargs),
+            HSBlockBNReLU(self.w, split, kernel_size=kernel_size,
+                          stride=stride, padding=padding, **kwargs),
             ConvBN(self.w*split, out_channels,
-                   kernel_size=1, stride=stride),
+                   kernel_size=1, stride=stride, **kwargs),
         )
         self.relu = nn.ReLU()
         self.shortcut = nn.Sequential()
         if stride != 1 or in_channels != out_channels:
             self.shortcut = ConvBN(
-                in_channels, out_channels, stride=stride, kernel_size=1)
+                in_channels, out_channels, stride=stride, kernel_size=1, **kwargs)
 
     def forward(self, x):
         residual = self.residual_function(x)
         shortcut = self.shortcut(x)
         return self.relu(residual + shortcut)
+
+
+class HSBottleNeckWithOutReLU(nn.Layer):
+    def __init__(self, in_channels: int, out_channels: int, split: int = 5, kernel_size: int = 3, stride: int = 1, padding: int = 1, **kwargs) -> None:
+        super(HSBottleNeckWithOutReLU, self).__init__()
+        self.w = max(2**(split-2), 1)
+        self.residual_function = nn.Sequential(
+            ConvBNReLU(in_channels, self.w*split,
+                       kernel_size=1, stride=stride, **kwargs),
+            HSBlockBNReLU(self.w, split, kernel_size=kernel_size,
+                          stride=stride, padding=padding, **kwargs),
+            ConvBN(self.w*split, out_channels,
+                   kernel_size=1, stride=stride, **kwargs),
+        )
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = ConvBN(
+                in_channels, out_channels, stride=stride, kernel_size=1, **kwargs)
+
+    def forward(self, x):
+        residual = self.residual_function(x)
+        shortcut = self.shortcut(x)
+        return residual + shortcut

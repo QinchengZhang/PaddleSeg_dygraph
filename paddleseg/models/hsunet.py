@@ -86,7 +86,7 @@ class Encoder(nn.Layer):
         super().__init__()
 
         self.double_conv = nn.Sequential(
-            layers.HSBottleNeck(3, 64, split), layers.HSBottleNeck(64, 64, split))    
+            layers.HSBottleNeck(3, 64, split), layers.HSBottleNeck(64, 64, split))
         self.down_channels = [[64, 128], [128, 256], [256, 512], [512, 512]]
         self.down_sample_list = nn.LayerList([
             self.down_sampling(channel[0], channel[1], split)

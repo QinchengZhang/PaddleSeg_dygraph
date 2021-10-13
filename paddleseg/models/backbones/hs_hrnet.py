@@ -20,15 +20,11 @@ import paddle.nn.functional as F
 
 from paddleseg.cvlibs import manager, param_init
 from paddleseg.models import layers
+from paddleseg.models.layers.hierarchicalsplit import HSBottleNeck, HSBottleNeckWithOutReLU
 from paddleseg.utils import utils
 
-__all__ = [
-    "HRNet_W18_Small_V1", "HRNet_W18_Small_V2", "HRNet_W18", "HRNet_W30",
-    "HRNet_W32", "HRNet_W40", "HRNet_W44", "HRNet_W48", "HRNet_W60", "HRNet_W64"
-]
 
-
-class HRNet(nn.Layer):
+class HS_HRNet(nn.Layer):
     """
     The HRNet implementation based on PaddlePaddle.
 
@@ -58,20 +54,20 @@ class HRNet(nn.Layer):
     def __init__(self,
                  pretrained=None,
                  stage1_num_modules=1,
-                 stage1_num_blocks=(4, ),
+                 stage1_num_blocks=(2, ),
                  stage1_num_channels=(64, ),
                  stage2_num_modules=1,
-                 stage2_num_blocks=(4, 4),
+                 stage2_num_blocks=(2, 2),
                  stage2_num_channels=(18, 36),
                  stage3_num_modules=4,
-                 stage3_num_blocks=(4, 4, 4),
+                 stage3_num_blocks=(2, 2, 2),
                  stage3_num_channels=(18, 36, 72),
                  stage4_num_modules=3,
-                 stage4_num_blocks=(4, 4, 4, 4),
+                 stage4_num_blocks=(2, 2, 2, 2),
                  stage4_num_channels=(18, 36, 72, 144),
                  has_se=False,
                  align_corners=False):
-        super(HRNet, self).__init__()
+        super(HS_HRNet, self).__init__()
         self.pretrained = pretrained
         self.stage1_num_modules = stage1_num_modules
         self.stage1_num_blocks = stage1_num_blocks
@@ -96,6 +92,14 @@ class HRNet(nn.Layer):
             stride=2,
             padding='same',
             bias_attr=False)
+        # self.conv_layer1_1 = layers.HSBottleNeck(
+        #     in_channels=3,
+        #     out_channels=64,
+        #     kernel_size=3,
+        #     stride=2,
+        #     padding='same',
+        #     bias_attr=False
+        # )
 
         self.conv_layer1_2 = layers.ConvBNReLU(
             in_channels=64,
@@ -104,6 +108,14 @@ class HRNet(nn.Layer):
             stride=2,
             padding='same',
             bias_attr=False)
+        # self.conv_layer1_2 = layers.HSBottleNeck(
+        #     in_channels=64,
+        #     out_channels=64,
+        #     kernel_size=3,
+        #     stride=2,
+        #     padding='same',
+        #     bias_attr=False
+        # )
 
         self.la1 = Layer1(
             num_channels=64,
@@ -153,35 +165,38 @@ class HRNet(nn.Layer):
             align_corners=align_corners)
         self.init_weight()
 
-    def forward(self, x): # b c w h
-        conv1 = self.conv_layer1_1(x) # b 64 w/2 h/2
-        conv2 = self.conv_layer1_2(conv1) # b 64 w/4 h/4
+    def forward(self, x):  # b c w h
+        conv1 = self.conv_layer1_1(x)  # b 64 w/2 h/2
+        conv2 = self.conv_layer1_2(conv1)  # b 64 w/4 h/4
 
+        la1 = self.la1(conv2)  # b 256 w/4 h/4
 
-        la1 = self.la1(conv2) # b 256 w/4 h/4
+        tr1 = self.tr1([la1])  # [[b 64 w/4 h/4], [b 128 w/8 h/8]]
+        st2 = self.st2(tr1)  # [[b 64 w/4 h/4], [b 128 w/8 h/8]]
 
-        tr1 = self.tr1([la1]) # [[b 64 w/4 h/4], [b 128 w/8 h/8]]
-        st2 = self.st2(tr1) # [[b 64 w/4 h/4], [b 128 w/8 h/8]]
+        # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16]]
+        tr2 = self.tr2(st2)
+        # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16]]
+        st3 = self.st3(tr2)
 
-        tr2 = self.tr2(st2) # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16]]
-        st3 = self.st3(tr2) # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16]]
-
-        tr3 = self.tr3(st3) # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16], [b 512 w/32 h/32]]
-        st4 = self.st4(tr3) # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16], [b 512 w/32 h/32]]
+        # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16], [b 512 w/32 h/32]]
+        tr3 = self.tr3(st3)
+        # [[b 64 w/4 h/4], [b 128 w/8 h/8], [b 256 w/16 h/16], [b 512 w/32 h/32]]
+        st4 = self.st4(tr3)
 
         x0_h, x0_w = st4[0].shape[2:]
         x1 = F.interpolate(
             st4[1], (x0_h, x0_w),
             mode='bilinear',
-            align_corners=self.align_corners) # b 128 w/4 h/4
+            align_corners=self.align_corners)  # b 128 w/4 h/4
         x2 = F.interpolate(
             st4[2], (x0_h, x0_w),
             mode='bilinear',
-            align_corners=self.align_corners) # b 256 w/4 h/4
+            align_corners=self.align_corners)  # b 256 w/4 h/4
         x3 = F.interpolate(
             st4[3], (x0_h, x0_w),
             mode='bilinear',
-            align_corners=self.align_corners) # b 512 w/4 h/4
+            align_corners=self.align_corners)  # b 512 w/4 h/4
 
         x = paddle.concat([st4[0], x1, x2, x3], axis=1)
 
@@ -241,12 +256,19 @@ class TransitionLayer(nn.Layer):
                 if in_channels[i] != out_channels[i]:
                     residual = self.add_sublayer(
                         "transition_{}_layer_{}".format(name, i + 1),
-                        layers.ConvBNReLU(
+                        # layers.ConvBNReLU(
+                        #     in_channels=in_channels[i],
+                        #     out_channels=out_channels[i],
+                        #     kernel_size=3,
+                        #     padding='same',
+                        #     bias_attr=False)
+                        layers.HSBottleNeck(
                             in_channels=in_channels[i],
                             out_channels=out_channels[i],
                             kernel_size=3,
                             padding='same',
-                            bias_attr=False))
+                            bias_attr=False)
+                    )
             else:
                 residual = self.add_sublayer(
                     "transition_{}_layer_{}".format(name, i + 1),
@@ -256,7 +278,15 @@ class TransitionLayer(nn.Layer):
                         kernel_size=3,
                         stride=2,
                         padding='same',
-                        bias_attr=False))
+                        bias_attr=False)
+                    # layers.HSBottleNeck(
+                    #     in_channels=in_channels[-1],
+                    #     out_channels=out_channels[i],
+                    #     kernel_size=3,
+                    #     stride=2,
+                    #     padding='same',
+                    #     bias_attr=False)
+                )
             self.conv_bn_func_list.append(residual)
 
     def forward(self, x):
@@ -320,14 +350,27 @@ class BottleneckBlock(nn.Layer):
         self.has_se = has_se
         self.downsample = downsample
 
-        self.conv1 = layers.ConvBNReLU(
+        # self.conv1 = layers.ConvBNReLU(
+        #     in_channels=num_channels,
+        #     out_channels=num_filters,
+        #     kernel_size=1,
+        #     padding='same',
+        #     bias_attr=False)
+        self.conv1 = layers.HSBottleNeck(
             in_channels=num_channels,
             out_channels=num_filters,
             kernel_size=1,
             padding='same',
             bias_attr=False)
 
-        self.conv2 = layers.ConvBNReLU(
+        # self.conv2 = layers.ConvBNReLU(
+        #     in_channels=num_filters,
+        #     out_channels=num_filters,
+        #     kernel_size=3,
+        #     stride=stride,
+        #     padding='same',
+        #     bias_attr=False)
+        self.conv2 = layers.HSBottleNeck(
             in_channels=num_filters,
             out_channels=num_filters,
             kernel_size=3,
@@ -335,7 +378,13 @@ class BottleneckBlock(nn.Layer):
             padding='same',
             bias_attr=False)
 
-        self.conv3 = layers.ConvBN(
+        # self.conv3 = layers.ConvBN(
+        #     in_channels=num_filters,
+        #     out_channels=num_filters * 4,
+        #     kernel_size=1,
+        #     padding='same',
+        #     bias_attr=False)
+        self.conv3 = layers.HSBottleNeckWithOutReLU(
             in_channels=num_filters,
             out_channels=num_filters * 4,
             kernel_size=1,
@@ -343,7 +392,13 @@ class BottleneckBlock(nn.Layer):
             bias_attr=False)
 
         if self.downsample:
-            self.conv_down = layers.ConvBN(
+            # self.conv_down = layers.ConvBN(
+            #     in_channels=num_channels,
+            #     out_channels=num_filters * 4,
+            #     kernel_size=1,
+            #     padding='same',
+            #     bias_attr=False)
+            self.conv_down = layers.HSBottleNeckWithOutReLU(
                 in_channels=num_channels,
                 out_channels=num_filters * 4,
                 kernel_size=1,
@@ -387,14 +442,28 @@ class BasicBlock(nn.Layer):
         self.has_se = has_se
         self.downsample = downsample
 
-        self.conv1 = layers.ConvBNReLU(
+        # self.conv1 = layers.ConvBNReLU(
+        #     in_channels=num_channels,
+        #     out_channels=num_filters,
+        #     kernel_size=3,
+        #     stride=stride,
+        #     padding='same',
+        #     bias_attr=False)
+        self.conv1 = layers.HSBottleNeck(
             in_channels=num_channels,
             out_channels=num_filters,
             kernel_size=3,
             stride=stride,
             padding='same',
             bias_attr=False)
-        self.conv2 = layers.ConvBN(
+
+        # self.conv2 = layers.ConvBN(
+        #     in_channels=num_filters,
+        #     out_channels=num_filters,
+        #     kernel_size=3,
+        #     padding='same',
+        #     bias_attr=False)
+        self.conv2 = layers.HSBottleNeckWithOutReLU(
             in_channels=num_filters,
             out_channels=num_filters,
             kernel_size=3,
@@ -402,7 +471,13 @@ class BasicBlock(nn.Layer):
             bias_attr=False)
 
         if self.downsample:
-            self.conv_down = layers.ConvBNReLU(
+            # self.conv_down = layers.ConvBNReLU(
+            #     in_channels=num_channels,
+            #     out_channels=num_filters,
+            #     kernel_size=1,
+            #     padding='same',
+            #     bias_attr=False)
+            self.conv_down = layers.HSBottleNeck(
                 in_channels=num_channels,
                 out_channels=num_filters,
                 kernel_size=1,
@@ -565,12 +640,19 @@ class FuseLayers(nn.Layer):
                 if j > i:
                     residual_func = self.add_sublayer(
                         "residual_{}_layer_{}_{}".format(name, i + 1, j + 1),
-                        layers.ConvBN(
+                        # layers.ConvBN(
+                        #     in_channels=in_channels[j],
+                        #     out_channels=out_channels[i],
+                        #     kernel_size=1,
+                        #     padding='same',
+                        #     bias_attr=False)
+                        layers.HSBottleNeckWithOutReLU(
                             in_channels=in_channels[j],
                             out_channels=out_channels[i],
                             kernel_size=1,
                             padding='same',
-                            bias_attr=False))
+                            bias_attr=False)
+                    )
                     self.residual_func_list.append(residual_func)
                 elif j < i:
                     pre_num_filters = in_channels[j]
@@ -585,7 +667,15 @@ class FuseLayers(nn.Layer):
                                     kernel_size=3,
                                     stride=2,
                                     padding='same',
-                                    bias_attr=False))
+                                    bias_attr=False)
+                                # layers.HSBottleNeckWithOutReLU(
+                                #     in_channels=pre_num_filters,
+                                #     out_channels=out_channels[i],
+                                #     kernel_size=3,
+                                #     stride=2,
+                                #     padding='same',
+                                #     bias_attr=False)
+                            )
                             pre_num_filters = out_channels[i]
                         else:
                             residual_func = self.add_sublayer(
@@ -597,7 +687,15 @@ class FuseLayers(nn.Layer):
                                     kernel_size=3,
                                     stride=2,
                                     padding='same',
-                                    bias_attr=False))
+                                    bias_attr=False)
+                                # layers.HSBottleNeck(
+                                #     in_channels=pre_num_filters,
+                                #     out_channels=out_channels[j],
+                                #     kernel_size=3,
+                                #     stride=2,
+                                #     padding='same',
+                                #     bias_attr=False)
+                            )
                             pre_num_filters = out_channels[j]
                         self.residual_func_list.append(residual_func)
 
@@ -611,11 +709,13 @@ class FuseLayers(nn.Layer):
                 if j > i:
                     y = self.residual_func_list[residual_func_idx](x[j])
                     residual_func_idx += 1
+
                     y = F.interpolate(
                         y,
                         residual_shape,
                         mode='bilinear',
                         align_corners=self.align_corners)
+
                     residual = residual + y
                 elif j < i:
                     y = x[j]
@@ -628,193 +728,3 @@ class FuseLayers(nn.Layer):
             residual = F.relu(residual)
             outs.append(residual)
         return outs
-
-
-@manager.BACKBONES.add_component
-def HRNet_W18_Small_V1(**kwargs):
-    model = HRNet(
-        stage1_num_modules=1,
-        stage1_num_blocks=[1],
-        stage1_num_channels=[32],
-        stage2_num_modules=1,
-        stage2_num_blocks=[2, 2],
-        stage2_num_channels=[16, 32],
-        stage3_num_modules=1,
-        stage3_num_blocks=[2, 2, 2],
-        stage3_num_channels=[16, 32, 64],
-        stage4_num_modules=1,
-        stage4_num_blocks=[2, 2, 2, 2],
-        stage4_num_channels=[16, 32, 64, 128],
-        **kwargs)
-    return model
-
-
-@manager.BACKBONES.add_component
-def HRNet_W18_Small_V2(**kwargs):
-    model = HRNet(
-        stage1_num_modules=1,
-        stage1_num_blocks=[2],
-        stage1_num_channels=[64],
-        stage2_num_modules=1,
-        stage2_num_blocks=[2, 2],
-        stage2_num_channels=[18, 36],
-        stage3_num_modules=3,
-        stage3_num_blocks=[2, 2, 2],
-        stage3_num_channels=[18, 36, 72],
-        stage4_num_modules=2,
-        stage4_num_blocks=[2, 2, 2, 2],
-        stage4_num_channels=[18, 36, 72, 144],
-        **kwargs)
-    return model
-
-
-@manager.BACKBONES.add_component
-def HRNet_W18(**kwargs):
-    model = HRNet(
-        stage1_num_modules=1,
-        stage1_num_blocks=[4],
-        stage1_num_channels=[64],
-        stage2_num_modules=1,
-        stage2_num_blocks=[4, 4],
-        stage2_num_channels=[18, 36],
-        stage3_num_modules=4,
-        stage3_num_blocks=[4, 4, 4],
-        stage3_num_channels=[18, 36, 72],
-        stage4_num_modules=3,
-        stage4_num_blocks=[4, 4, 4, 4],
-        stage4_num_channels=[18, 36, 72, 144],
-        **kwargs)
-    return model
-
-
-@manager.BACKBONES.add_component
-def HRNet_W30(**kwargs):
-    model = HRNet(
-        stage1_num_modules=1,
-        stage1_num_blocks=[4],
-        stage1_num_channels=[64],
-        stage2_num_modules=1,
-        stage2_num_blocks=[4, 4],
-        stage2_num_channels=[30, 60],
-        stage3_num_modules=4,
-        stage3_num_blocks=[4, 4, 4],
-        stage3_num_channels=[30, 60, 120],
-        stage4_num_modules=3,
-        stage4_num_blocks=[4, 4, 4, 4],
-        stage4_num_channels=[30, 60, 120, 240],
-        **kwargs)
-    return model
-
-
-@manager.BACKBONES.add_component
-def HRNet_W32(**kwargs):
-    model = HRNet(
-        stage1_num_modules=1,
-        stage1_num_blocks=[4],
-        stage1_num_channels=[64],
-        stage2_num_modules=1,
-        stage2_num_blocks=[4, 4],
-        stage2_num_channels=[32, 64],
-        stage3_num_modules=4,
-        stage3_num_blocks=[4, 4, 4],
-        stage3_num_channels=[32, 64, 128],
-        stage4_num_modules=3,
-        stage4_num_blocks=[4, 4, 4, 4],
-        stage4_num_channels=[32, 64, 128, 256],
-        **kwargs)
-    return model
-
-
-@manager.BACKBONES.add_component
-def HRNet_W40(**kwargs):
-    model = HRNet(
-        stage1_num_modules=1,
-        stage1_num_blocks=[4],
-        stage1_num_channels=[64],
-        stage2_num_modules=1,
-        stage2_num_blocks=[4, 4],
-        stage2_num_channels=[40, 80],
-        stage3_num_modules=4,
-        stage3_num_blocks=[4, 4, 4],
-        stage3_num_channels=[40, 80, 160],
-        stage4_num_modules=3,
-        stage4_num_blocks=[4, 4, 4, 4],
-        stage4_num_channels=[40, 80, 160, 320],
-        **kwargs)
-    return model
-
-
-@manager.BACKBONES.add_component
-def HRNet_W44(**kwargs):
-    model = HRNet(
-        stage1_num_modules=1,
-        stage1_num_blocks=[4],
-        stage1_num_channels=[64],
-        stage2_num_modules=1,
-        stage2_num_blocks=[4, 4],
-        stage2_num_channels=[44, 88],
-        stage3_num_modules=4,
-        stage3_num_blocks=[4, 4, 4],
-        stage3_num_channels=[44, 88, 176],
-        stage4_num_modules=3,
-        stage4_num_blocks=[4, 4, 4, 4],
-        stage4_num_channels=[44, 88, 176, 352],
-        **kwargs)
-    return model
-
-
-@manager.BACKBONES.add_component
-def HRNet_W48(**kwargs):
-    model = HRNet(
-        stage1_num_modules=1,
-        stage1_num_blocks=[4],
-        stage1_num_channels=[64],
-        stage2_num_modules=1,
-        stage2_num_blocks=[4, 4],
-        stage2_num_channels=[48, 96],
-        stage3_num_modules=4,
-        stage3_num_blocks=[4, 4, 4],
-        stage3_num_channels=[48, 96, 192],
-        stage4_num_modules=3,
-        stage4_num_blocks=[4, 4, 4, 4],
-        stage4_num_channels=[48, 96, 192, 384],
-        **kwargs)
-    return model
-
-
-@manager.BACKBONES.add_component
-def HRNet_W60(**kwargs):
-    model = HRNet(
-        stage1_num_modules=1,
-        stage1_num_blocks=[4],
-        stage1_num_channels=[64],
-        stage2_num_modules=1,
-        stage2_num_blocks=[4, 4],
-        stage2_num_channels=[60, 120],
-        stage3_num_modules=4,
-        stage3_num_blocks=[4, 4, 4],
-        stage3_num_channels=[60, 120, 240],
-        stage4_num_modules=3,
-        stage4_num_blocks=[4, 4, 4, 4],
-        stage4_num_channels=[60, 120, 240, 480],
-        **kwargs)
-    return model
-
-
-@manager.BACKBONES.add_component
-def HRNet_W64(**kwargs):
-    model = HRNet(
-        stage1_num_modules=1,
-        stage1_num_blocks=[4],
-        stage1_num_channels=[64],
-        stage2_num_modules=1,
-        stage2_num_blocks=[4, 4],
-        stage2_num_channels=[64, 128],
-        stage3_num_modules=4,
-        stage3_num_blocks=[4, 4, 4],
-        stage3_num_channels=[64, 128, 256],
-        stage4_num_modules=3,
-        stage4_num_blocks=[4, 4, 4, 4],
-        stage4_num_channels=[64, 128, 256, 512],
-        **kwargs)
-    return model
