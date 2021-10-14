@@ -22,6 +22,7 @@ Description: None
 
 from .hrnet import *
 from .hs_hrnet import *
+from .hrnet_maxpool import *
 from .resnet_vd import *
 from .xception_deeplab import *
 from .mobilenetv3 import *

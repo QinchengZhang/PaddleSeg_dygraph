@@ -49,3 +49,4 @@ from .attunetwithaspp import ASPPAttentionUNet
 from .convtransunet import ConvTransUNet
 from .hrunet import *
 from .hs_hrunet import *
+from .hrunet_maxpool import *
