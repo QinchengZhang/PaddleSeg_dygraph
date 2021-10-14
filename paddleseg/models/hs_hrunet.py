@@ -20,6 +20,7 @@ Description: None
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 from re import S
 import paddle
 import paddle.nn as nn
@@ -52,17 +53,19 @@ class HS_HRUNet(nn.Layer):
 
     def __init__(self,
                  num_classes,
-                 stage_num_block = 2,
+                 stage_num_block=2,
                  align_corners=False,
                  resample_mode='bilinear',
                  pretrained=None):
         super().__init__()
 
         self.encode = Encoder(
-            stage1_num_blocks= [stage_num_block],
-            stage2_num_blocks= [stage_num_block, stage_num_block],
-            stage3_num_blocks= [stage_num_block, stage_num_block, stage_num_block],
-            stage4_num_blocks= [stage_num_block, stage_num_block, stage_num_block, stage_num_block]
+            stage1_num_blocks=[stage_num_block],
+            stage2_num_blocks=[stage_num_block, stage_num_block],
+            stage3_num_blocks=[stage_num_block,
+                               stage_num_block, stage_num_block],
+            stage4_num_blocks=[stage_num_block,
+                               stage_num_block, stage_num_block, stage_num_block]
         )
         self.decode = Decoder(align_corners, mode=resample_mode)
         self.cls = self.conv = nn.Conv2D(
@@ -90,21 +93,21 @@ class HS_HRUNet(nn.Layer):
 
 class Encoder(nn.Layer):
     def __init__(self,
-                pretrained=None,
-                stage1_num_modules=1,
-                stage1_num_blocks=[4],
-                stage1_num_channels=[64],
-                stage2_num_modules=1,
-                stage2_num_blocks=[4, 4],
-                stage2_num_channels=[64, 128],
-                stage3_num_modules=4,
-                stage3_num_blocks=[4, 4, 4],
-                stage3_num_channels=[64, 128, 256],
-                stage4_num_modules=3,
-                stage4_num_blocks=[4, 4, 4, 4],
-                stage4_num_channels=[64, 128, 256, 512],
-                has_se=False,
-                align_corners=False):
+                 pretrained=None,
+                 stage1_num_modules=1,
+                 stage1_num_blocks=[4],
+                 stage1_num_channels=[64],
+                 stage2_num_modules=1,
+                 stage2_num_blocks=[4, 4],
+                 stage2_num_channels=[64, 128],
+                 stage3_num_modules=4,
+                 stage3_num_blocks=[4, 4, 4],
+                 stage3_num_channels=[64, 128, 256],
+                 stage4_num_modules=3,
+                 stage4_num_blocks=[4, 4, 4, 4],
+                 stage4_num_channels=[64, 128, 256, 512],
+                 has_se=False,
+                 align_corners=False):
         super(Encoder, self).__init__()
         self.pretrained = pretrained
         self.stage1_num_modules = stage1_num_modules
@@ -125,31 +128,31 @@ class Encoder(nn.Layer):
 
         self.double_conv = nn.Sequential(
             layers.ConvBNReLU(
-            in_channels=3,
-            out_channels=64,
-            kernel_size=3,
-            stride=1,
-            padding='same',
-            bias_attr=False
+                in_channels=3,
+                out_channels=64,
+                kernel_size=3,
+                stride=1,
+                padding='same',
+                bias_attr=False
             ),
             layers.ConvBNReLU(
-            in_channels=64,
-            out_channels=64,
-            kernel_size=3,
-            stride=1,
-            padding='same',
-            bias_attr=False
+                in_channels=64,
+                out_channels=64,
+                kernel_size=3,
+                stride=1,
+                padding='same',
+                bias_attr=False
             )
         )
 
         self.post_double_conv = nn.Sequential(
             layers.ConvBNReLU(
-            in_channels=512,
-            out_channels=512,
-            kernel_size=3,
-            stride=2,
-            padding='same',
-            bias_attr=False
+                in_channels=512,
+                out_channels=512,
+                kernel_size=3,
+                stride=2,
+                padding='same',
+                bias_attr=False
             )
         )
 
@@ -217,22 +220,23 @@ class Encoder(nn.Layer):
             align_corners=align_corners)
         self.init_weight()
 
-    def forward(self, x): # 1 3 256 256
+    def forward(self, x):  # 1 3 256 256
         # conv1 = self.conv_layer1_1(x) # 1 64 128 128
         # conv2 = self.conv_layer1_2(conv1) # 1 64 64 64
         conv1 = self.double_conv(x)
 
+        la1 = self.la1(conv1)  # 1 256 64 64
 
-        la1 = self.la1(conv1) # 1 256 64 64
+        tr1 = self.tr1([la1])  # [[1 64 64 64], [1 128 32 32]]
+        st2 = self.st2(tr1)  # [[1 64 64 64], [1 128 32 32]]
 
-        tr1 = self.tr1([la1]) # [[1 64 64 64], [1 128 32 32]]
-        st2 = self.st2(tr1) # [[1 64 64 64], [1 128 32 32]]
+        tr2 = self.tr2(st2)  # [[1 64 64 64], [1 128 32 32], [1 256 16 16]]
+        st3 = self.st3(tr2)  # [[1 64 64 64], [1 128 32 32], [1 256 16 16]]
 
-        tr2 = self.tr2(st2) # [[1 64 64 64], [1 128 32 32], [1 256 16 16]]
-        st3 = self.st3(tr2) # [[1 64 64 64], [1 128 32 32], [1 256 16 16]]
-
-        tr3 = self.tr3(st3) # [[1 64 64 64], [1 128 32 32], [1 256 16 16], [1 512 8 8]]
-        st4 = self.st4(tr3) # [[1 64 64 64], [1 128 32 32], [1 256 16 16], [1 512 8 8]]
+        # [[1 64 64 64], [1 128 32 32], [1 256 16 16], [1 512 8 8]]
+        tr3 = self.tr3(st3)
+        # [[1 64 64 64], [1 128 32 32], [1 256 16 16], [1 512 8 8]]
+        st4 = self.st4(tr3)
 
         out = self.post_double_conv(st4[-1])
 
@@ -291,7 +295,8 @@ class UpSampling(nn.Layer):
 
         self.align_corners = align_corners
 
-        self.upsample = nn.Upsample(scale_factor=2, mode=mode, align_corners=align_corners)
+        self.upsample = nn.Upsample(
+            scale_factor=2, mode=mode, align_corners=align_corners)
         self.double_conv = nn.Sequential(
             layers.ConvBNReLU(in_channels+in_channels, out_channels, 3),
             layers.ConvBNReLU(out_channels, out_channels, 3))
